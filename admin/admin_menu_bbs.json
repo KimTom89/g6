@@ -51,7 +51,7 @@
             "id": "100400",
             "name": "부가서비스",
             "url": "/service",
-            "tag": ""
+            "tag": "admin_service"
         },
         {
             "id": "100420",
@@ -104,7 +104,7 @@
         },
         {
             "id": "200900",
-            "name": "투표관리",
+            "name": "설문조사관리",
             "url": "/poll_list",
             "tag": "admin_poll"
         }

@@ -1,4 +1,3 @@
-import html as htmllib
 from typing import List
 from typing_extensions import Annotated
 
@@ -18,6 +17,8 @@ from lib.dependencies import (
 )
 from lib.template_filters import number_format, search_font
 from lib.template_functions import get_paging
+from lib.html_sanitizer import subject_sanitizer, content_sanitizer
+
 
 router = APIRouter()
 templates = UserTemplates()
@@ -253,8 +254,9 @@ async def qa_write_update(
         raise AlertException(f"제목/내용에 금지단어({word})가 포함되어 있습니다.", 400)
     
     # Stored XSS 방지
-    form_data.qa_subject = htmllib.escape(form_data.qa_subject)
-    
+    form_data.qa_subject = subject_sanitizer.get_cleaned_data(form_data.qa_subject)
+    form_data.qa_content = content_sanitizer.get_cleaned_data(form_data.qa_content)
+
     # Q&A 업로드파일 크기 검증
     if not request.state.is_super_admin:
         if file1.size > 0 and file1.size > qa_config.qa_upload_size:
@@ -289,6 +291,8 @@ async def qa_write_update(
 
         # 답변글
         # TODO : 메일 발송 템플릿 적용필요
+        from_email = get_admin_email(request)
+        from_name = get_admin_email_name(request)
         if qa_parent:
             parent = db.get(QaContent, qa_parent)
             # 원본글의 답변여부를 1로 변경
@@ -297,13 +301,13 @@ async def qa_write_update(
             if parent.qa_email_recv and parent.qa_email:
                 subject = f"[{config.cf_title}] {qa_config.qa_title} 답변 알림 메일"
                 content = form_data.qa_subject + "<br><br>" + form_data.qa_content
-                mailer(parent.qa_email, subject, content)
+                mailer(from_email, parent.qa_email, subject, content, from_name)
         else:
             # 문의 등록메일 발송
             if qa_config.qa_admin_email:
                 subject = f"[{config.cf_title}] {qa_config.qa_title} 질문 알림 메일"
                 content = form_data.qa_subject + "<br><br>" + form_data.qa_content
-                mailer(qa_config.qa_admin_email, subject, content)
+                mailer(from_email, qa_config.qa_admin_email, subject, content, from_name)
 
         db.commit()
 

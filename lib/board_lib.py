@@ -3,8 +3,9 @@ import bleach
 
 from datetime import datetime, timedelta
 from fastapi import Request
-from sqlalchemy import and_, insert, or_, Select, select
+from sqlalchemy import and_, insert, or_
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.expression import Select
 
 from core.database import DBConnect
 from core.exception import AlertException
@@ -377,7 +378,7 @@ class BoardConfig():
 
         return ",".join(map(str, notice_ids))
 
-    def set_wr_name(self, member: Member = None, default_name: str = "") -> str:
+    def set_wr_name(self, member: Member = None, default_name: str = None) -> str:
         """실명사용 여부를 확인 후 실명이면 이름을, 아니면 닉네임을 반환한다.
 
         Args:
@@ -392,8 +393,10 @@ class BoardConfig():
                 return member.mb_name
             else:
                 return member.mb_nick
-        else:
+        elif default_name:
             return default_name
+        else:
+            raise AlertException("로그인 세션 만료, 비회원 글쓰기시 작성자 이름 미기재 등의 비정상적인 접근입니다.", 400)
 
     def _can_action_by_level(self, level: int) -> bool:
         """회원 레벨에 따라 행동 가능 여부를 판단한다.
@@ -489,6 +492,9 @@ class BoardFileManager():
         self.bo_table = board.bo_table
         self.wr_id = wr_id
         self.db = DBConnect().sessionLocal()
+
+    def __del__(self):
+        self.db.close()
 
     def is_exist(self, bo_table: str = None, wr_id: int = None):
         """게시글에 파일이 있는지 확인
@@ -832,7 +838,6 @@ def write_search_filter(
     Returns:
         Select: 필터가 적용된 쿼리.
     """
-    db = DBConnect().sessionLocal()
     fields = []
     is_comment = False
 
@@ -859,7 +864,8 @@ def write_search_filter(
         for word in words:
             if not word.strip():
                 continue
-            word_filters.append(or_(*[getattr(model, field).like(f"%{word}%") for field in fields]))
+            word_filters.append(or_(
+                *[getattr(model, field).like(f"%{word}%") for field in fields if hasattr(model, field)]))
 
             # 단어별 인기검색어 등록
             insert_popular(request, fields, word)
@@ -874,7 +880,8 @@ def write_search_filter(
     if is_comment:
         query = query.where(model.wr_is_comment == 1)
         # 원글만 조회해야하므로, wr_parent 목록을 가져와서 in조건으로 재필터링
-        parents = db.scalars(query.add_columns(model)).all()
+        with DBConnect().sessionLocal() as db:
+            parents = db.scalars(query.add_columns(model)).all()
         query = select().where(model.wr_id.in_([row.wr_parent for row in parents]))
 
     return query
@@ -988,6 +995,8 @@ def generate_reply_character(board: Board, write):
     else:
         reply_char = chr(ord(last_reply_char) + char_increase)
 
+    db.close()
+
     return origin_reply + reply_char
 
 
@@ -1056,7 +1065,6 @@ def send_write_mail(request: Request, board: Board, write: WriteBaseModel, origi
     # 중복 이메일 제거
     send_email_list = list(set(send_email_list))
     for email in send_email_list:
-        # TODO: 내용 HTML 처리 필요
         subject = f"[{config.cf_title}] {board.bo_subject} 게시판에 {act}이 등록되었습니다."
         body = templates.TemplateResponse(
             "bbs/mail_form/write_update_mail.html", {
@@ -1069,7 +1077,7 @@ def send_write_mail(request: Request, board: Board, write: WriteBaseModel, origi
                 "link_url": link_url,
             }
         ).body.decode("utf-8")
-        mailer(email, subject, body)
+        mailer(get_admin_email(request), email, subject, body, get_admin_email_name(request))
 
     db.close()
 
@@ -1087,7 +1095,7 @@ def get_list_thumbnail(request: Request, board: Board, write: WriteBaseModel, th
     config = request.state.config
     images, files = BoardFileManager(board, write.wr_id).get_board_files_by_type(request)
     source_file = None
-    result = {"src": "", "alt": ""}
+    result = {"src": "", "alt": "", "noimg":""}
 
     if images:
         # TODO : 게시글의 파일정보를 캐시된 데이터에서 조회한다.
@@ -1120,9 +1128,13 @@ def get_list_thumbnail(request: Request, board: Board, write: WriteBaseModel, th
 
     # 섬네일 생성
     if source_file:
-        src = thumbnail(source_file, width=thumb_width, height=thumb_height, **kwargs)
-        if src:
-            result["src"] = src
+        result["src"] = thumbnail(source_file, width=thumb_width, height=thumb_height, **kwargs)
+    # 이미지가 없을 때
+    else:
+        result["src"] = thumbnail("./static/img/dummy-donotremove.png",
+                        target_path="./data/thumbnail_tmp",
+                        width=thumb_width, height=thumb_height, **kwargs)
+        result["noimg"] = "img_not_found"
 
     return result
 
@@ -1175,7 +1187,7 @@ def delete_write(request: Request, bo_table: str, origin_write: WriteBaseModel) 
             raise AlertException("자신의 게시글만 삭제할 수 있습니다.", 403)
         elif not origin_write.mb_id and not request.session.get(f"ss_delete_{bo_table}_{origin_write.wr_id}"):
             url = f"/bbs/password/delete/{bo_table}/{origin_write.wr_id}"
-            query_params = request.query_params
+            query_params = remove_query_params(request, "token")
             raise AlertException("비회원 글을 삭제할 권한이 없습니다.", 403, set_url_query_params(url, query_params))
     
     # 답변글이 있을 때 삭제 불가
@@ -1245,6 +1257,7 @@ def delete_write(request: Request, bo_table: str, origin_write: WriteBaseModel) 
     board.bo_count_comment -= delete_comment_count
 
     db.commit()
+    db.close()
 
     # 최신글 캐시 삭제
     FileCache().delete_prefix(f'latest-{bo_table}')
@@ -1365,24 +1378,27 @@ def render_latest_posts(request: Request, skin_name: str = 'basic', bo_table: st
     # 캐시된 파일이 있으면 파일을 읽어서 반환
     if os.path.exists(cache_file):
         return file_cache.get(cache_file)
-    
-    db = DBConnect().sessionLocal()
-    # 게시판 설정
-    board = db.get(Board, bo_table)
-    board_config = BoardConfig(request, board)
-    board.subject = board_config.subject
 
-    #게시글 목록 조회
-    write_model = dynamic_create_write_table(bo_table)
-    writes = db.scalars(
-        select(write_model)
-        .where(write_model.wr_is_comment == 0)
-        .order_by(write_model.wr_num)
-        .limit(rows)
-    ).all()
-    for write in writes:
-        write = get_list(request, write, board_config, subject_len)
-    
+    with DBConnect().sessionLocal() as db:
+        # 게시판 설정
+        board = db.get(Board, bo_table)
+        if not board: 
+            return ""
+
+        board_config = BoardConfig(request, board)
+        board.subject = board_config.subject
+
+        #게시글 목록 조회
+        write_model = dynamic_create_write_table(bo_table)
+        writes = db.scalars(
+            select(write_model)
+            .where(write_model.wr_is_comment == 0)
+            .order_by(write_model.wr_num)
+            .limit(rows)
+        ).all()
+        for write in writes:
+            write = get_list(request, write, board_config, subject_len)
+
     context = {
         "request": request,
         "board": board,

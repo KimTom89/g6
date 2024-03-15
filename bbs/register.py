@@ -123,6 +123,10 @@ async def post_register_form(
     exists_member = db.scalar(select(Member).where(Member.mb_id == mb_id))
     if exists_member:
         raise AlertException(status_code=400, detail="이미 존재하는 회원아이디 입니다.")
+    if len(mb_id) < 3 or len(mb_id) > 20:
+        raise AlertException("회원아이디는 3~20자 이어야 합니다.", 400)
+    if not re.match(r"^[a-zA-Z0-9_]+$", mb_id):
+        raise AlertException("회원아이디는 영문자, 숫자, _ 만 사용할 수 있습니다.", 400)
 
     if not (mb_password and mb_password_re):
         raise AlertException(status_code=400, detail="비밀번호를 입력해 주세요.")
@@ -220,6 +224,8 @@ async def post_register_form(
     if config.cf_use_recommend and mb_recommend:
         insert_point(request, mb_recommend, config.cf_recommend_point, f"{new_member.mb_id}의 추천인", "@member", mb_recommend, f"{new_member.mb_id} 추천")
 
+    from_email = get_admin_email(request)
+    from_name = get_admin_email_name(request)
     # 회원에게 인증메일 발송
     if config.cf_use_email_certify:
         subject = f"[{config.cf_title}] 회원가입 인증메일 발송"
@@ -231,7 +237,7 @@ async def post_register_form(
                 "certify_href": f"{request.base_url.__str__()}bbs/email_certify/{new_member.mb_id}?certify={new_member.mb_email_certify2}",
             }
         ).body.decode("utf-8")
-        mailer(new_member.mb_email, subject, body)
+        mailer(from_email, new_member.mb_email, subject, body, from_name)
     # 회원에게 회원가입 메일 발송
     elif config.cf_email_mb_member:
         subject = f"[{config.cf_title}] 회원가입을 축하드립니다."
@@ -242,7 +248,7 @@ async def post_register_form(
                 "member": new_member,
             }
         ).body.decode("utf-8")
-        mailer(new_member.mb_email, subject, body)
+        mailer(from_email, new_member.mb_email, subject, body, from_name)
 
     # 최고관리자에게 회원가입 메일 발송
     if config.cf_email_mb_super_admin:
@@ -254,7 +260,7 @@ async def post_register_form(
                 "member": new_member,
             }
         ).body.decode("utf-8")
-        mailer(config.cf_admin_email, subject, body)
+        mailer(from_email, config.cf_admin_email, subject, body, from_name)
 
     if not config.cf_use_email_certify:
         request.session["ss_mb_id"] = new_member.mb_id
