@@ -30,7 +30,7 @@
     </form>
     
     <form name="fpolllist" id="fpolllist" action="{{ url_for('poll_list_delete')|set_query_params(request) }}" method="post" onsubmit="return fpolllist_submit(this);">
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
         <div class="tbl_head01 tbl_wrap">
             <table>
                 <caption>설문조사 관리 목록</caption>
@@ -90,7 +90,6 @@
 
             if (confirm("한번 삭제한 자료는 복구할 방법이 없습니다.\n\n정말 삭제하시겠습니까?")) {
 
-                f.token.value = generate_token();
                 f.action += "?{{ request.query_params|safe }}";
 
                 return true;

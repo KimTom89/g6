@@ -21,7 +21,7 @@
 
     <form method="post" name="ftodo_list" id="ftodo_list" action="/admin/todo/update"
           onsubmit="return ftodo_list_submit(this);" autocomplete="off">
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
 
         <div class="tbl_head01 tbl_wrap">
             <table>
@@ -97,8 +97,6 @@
 
                 f.action = "/admin/todo/delete";
             }
-
-            f.token.value = generate_token();
 
             return true;
         }

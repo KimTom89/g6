@@ -37,7 +37,7 @@
     </form>
 
     <form name="fpointlist" id="fpointlist" method="post" action="/admin/point_list_delete" onsubmit="return fpointlist_submit(this);">
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
 
         <div class="tbl_head01 tbl_wrap">
             <table>
@@ -102,7 +102,7 @@
     <section id="point_mng">
         <h2 class="h2_frm">개별회원 포인트 증감 설정</h2>
         <form name="fpointlist2" method="post" id="fpointlist2" action="/admin/point_update" autocomplete="off" onsubmit="return fpoint_submit(this);">
-            <input type="hidden" name="token" value="">
+            <input type="hidden" name="csrf_token" value="">
             <div class="tbl_frm01 tbl_wrap">
                 <table>
                     <colgroup>
@@ -139,7 +139,6 @@
 
     <script>
         function fpoint_submit(f) {
-            f.token.value = generate_token();
             f.action += "?{{ request.query_params|safe }}";
 
             return true;
@@ -157,7 +156,6 @@
                 }
             }
 
-            f.token.value = generate_token();
             f.action += "?{{ request.query_params|safe }}";
 
             return true;

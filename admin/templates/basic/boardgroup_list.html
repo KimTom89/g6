@@ -27,7 +27,7 @@
     </form>
 
     <form method="post" name="fboardgrouplist" id="fboardgrouplist" action="/admin/boardgroup_list_update" onsubmit="return fboardgrouplist_submit(this);" autocomplete="off">
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
 
         <div class="tbl_head01 tbl_wrap">
             <table>
@@ -120,7 +120,6 @@
                 f.action = "/admin/boardgroup_list_delete";
             }
 
-            f.token.value = generate_token();
             f.action += "?{{ request.query_params|safe }}";
 
             return true;

@@ -15,7 +15,7 @@
 
 <form name="ftodo" action="{{ action_url }}" onsubmit="return frm_form_check(this);" method="post">
     <input type="hidden" name="action" value="{{ 'update' if request.path_params.id else '' }}">
-    <input type="hidden" name="token" value="">
+    <input type="hidden" name="csrf_token" value="">
 
 
     <div class="tbl_frm01 tbl_wrap">
@@ -69,8 +69,6 @@
             error_field.focus();
             return false;
         }
-
-        f.token.value = generate_token();
 
         return true;
     }

@@ -7,7 +7,7 @@
 <div id="find_info" class="new_win">
     <div class="new_win_con">
         <form name="fidlost" action="/bbs/id_lost" onsubmit="return fidlost_submit(this);" method="post" autocomplete="off">
-            <input type="hidden" name="token" value="">
+            <input type="hidden" name="csrf_token" value="">
             <h3>회원가입정보로 ID 찾기</h3>
             <fieldset id="info_fs">
                 <p>
@@ -40,8 +40,6 @@ function fidlost_submit(f) {
             return false;
         }
     }
-
-    f.token.value = generate_token();
 
     return true;
 }

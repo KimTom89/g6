@@ -394,7 +394,7 @@
             <input type="hidden" name="stx" value="{{ request.query_params.stx }}">
             <input type="hidden" name="spt" value="{{ request.query_params.spt }}">
             <input type="hidden" name="page" value="{{ request.query_params.page }}">
-            <input type="hidden" name="token" value="">
+            <input type="hidden" name="csrf_token" value="">
 
             <div class="write_writer">
                 {% if not request.state.login_member %}
@@ -498,12 +498,6 @@
                 f.wr_password.focus();
                 return false;
             }
-        }
-
-        f.token.value = generate_token();
-        if (f.token.value == "") {
-            alert("토큰 생성에 실패하였습니다.");
-            return false;
         }
 
         // captcha 사용시

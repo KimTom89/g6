@@ -9,7 +9,7 @@
     <h1>게시판 복사</h1>
     <form name="fboardcopy" id="fboardcopy" action="/admin/board_copy_update" onsubmit="return fboardcopy_check(this);" method="post" autocomplete="off">
         <input type="hidden" name="bo_table" value="{{ board.bo_table }}" id="bo_table">
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
         <div class=" new_win_con">
             <div class="tbl_frm01 tbl_wrap">
                 <table>
@@ -63,8 +63,6 @@
             alert("원본 테이블명과 복사할 테이블명이 달라야 합니다.");
             return false;
         }
-
-        f.token.value = generate_token();
 
         return true;
     }

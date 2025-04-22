@@ -6,7 +6,7 @@
 {% block content %}
     <form name="fboardgroupmember_form" id="fboardgroupmember_form" action="/admin/boardgroupmember_insert" onsubmit="return boardgroupmember_form_check(this)" method="post">
         <input type="hidden" name="mb_id" value="{{ member.mb_id }}" id="mb_id">
-        <input type="hidden" name="token" id="token" value="">
+        <input type="hidden" name="csrf_token" id="token" value="">
 
         <div class="local_ov01 local_ov">
             <span class="btn_ov01"><span class="ov_txt"> 아이디</span><span class="ov_num">{{ member.mb_id }}</span></span>
@@ -27,7 +27,7 @@
     </form>
 
     <form name="fboardgroupmember" id="fboardgroupmember" action="/admin/boardgroupmember_delete" onsubmit="return fboardgroupmember_submit(this);" method="post">
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
         <input type="hidden" name="mb_id" value="{{ member.mb_id }}" id="mb_id">
 
         <div class="tbl_head01 tbl_wrap">
@@ -76,8 +76,6 @@
                 return false;
             }
 
-            f.token.value = generate_token();
-
             return true;
         }
 
@@ -87,7 +85,6 @@
                 return false;
             }
 
-            f.token.value = generate_token();
             f.action += "?{{ request.query_params|safe }}";
 
             return true;

@@ -88,7 +88,7 @@
         </div>
         <!-- } 게시판 페이지 정보 및 버튼 끝 -->
         <form name="fqalist" id="fqalist" action="{{ url_for('qa_delete_list') }}?{{ query_params }}" onsubmit="return fqalist_submit(this);" method="post">
-            <input type="hidden" name="token" value="">
+            <input type="hidden" name="csrf_token" value="">
                     
             <div class="tbl_head01 tbl_wrap">
                 <table>
@@ -209,8 +209,6 @@
                 if (!confirm("선택한 게시물을 정말 삭제하시겠습니까?\n\n한번 삭제한 자료는 복구할 수 없습니다"))
                     return false;
             }
-
-            f.token.value = generate_token();
 
             return true;
         }

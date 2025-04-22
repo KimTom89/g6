@@ -13,7 +13,7 @@
 {% block content %}
     <div class="container_wr">
         <form name="frmfaqform" action="{{ form_action }}" onsubmit="return frmfaqform_check(this);" method="post">
-            <input type="hidden" name="token" value="">
+            <input type="hidden" name="csrf_token" value="">
 
             <div class="tbl_frm01 tbl_wrap">
                 <table>
@@ -64,8 +64,6 @@
                 errfld.focus();
                 return false;
             }
-
-            f.token.value = generate_token();
 
             return true;
         }

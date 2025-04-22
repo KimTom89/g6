@@ -9,7 +9,7 @@
 
 {% block content %}
 <form name="fmember" id="fmember" action="/admin/member_form_update" onsubmit="return fmember_submit(this);" method="post" enctype="multipart/form-data" autocomplete="off">
-<input type="hidden" name="token" value="">
+<input type="hidden" name="csrf_token" value="">
 
 <div class="tbl_frm01 tbl_wrap">
     <table>
@@ -332,7 +332,6 @@
             return false; // 중복이거나 에러가 발생한 경우 폼 제출 중지
         }
 
-        f.token.value = generate_token();
         f.action += "?{{ request.query_params|safe }}";
 
         return true;

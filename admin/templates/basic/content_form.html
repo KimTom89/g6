@@ -13,7 +13,7 @@
 <form name="frmcontentform" action="/admin/content_form_update" onsubmit="return frmcontentform_check(this);" method="post" enctype="multipart/form-data">
     <input type="hidden" name="action" value="{{ "u" if content.co_id else "w" }}">
     <input type="hidden" name="co_html" value="1">
-    <input type="hidden" name="token" value="">
+    <input type="hidden" name="csrf_token" value="">
 
     <div class="tbl_frm01 tbl_wrap">
         <table>
@@ -27,7 +27,7 @@
                     <th scope="row"><label for="co_id">ID</label></th>
                     <td>
                         <span class="frm_info">20자 이내의 영문자, 숫자, _ 만 가능합니다.</span>                        
-                        <input type="text" value="{{ content.co_id }}" name="co_id" id="co_id" required  class="required  frm_input" size="20" maxlength="20">
+                        <input type="text" value="{{ content.co_id }}" name="co_id" id="co_id" required class="required  frm_input" size="20" maxlength="20" {{ "readonly" if content.co_id else "" }}>
                     </td>
                 </tr>
                 <tr>
@@ -123,8 +123,6 @@
             errfld.focus();
             return false;
         }
-
-        f.token.value = generate_token();
 
         return true;
     }

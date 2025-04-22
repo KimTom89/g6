@@ -34,7 +34,7 @@
     </form>
     
     <form name="fpopularlist" id="fpopularlist" action="{{ url_for('popular_delete') }}" method="post" onsubmit="return fpopularlist_submit(this);">
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
     
         <div class="tbl_head01 tbl_wrap">
             <table>
@@ -117,7 +117,6 @@
             }
 
             if (confirm("한번 삭제한 자료는 복구할 방법이 없습니다.\n\n정말 삭제하시겠습니까?")) {
-                f.token.value = generate_token();
                 f.action += "?{{ request.query_params|safe }}";
                 return true;
             } else {

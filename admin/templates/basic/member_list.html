@@ -55,7 +55,7 @@
     </div>
 
     <form name="fmemberlist" id="fmemberlist" action="/admin/member_list_update" onsubmit="return fmemberlist_submit(this);" method="post">
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
 
         <div class="tbl_head01 tbl_wrap">
             <table>
@@ -202,7 +202,6 @@
                 f.action = "/admin/member_list_delete";
             }
 
-            f.token.value = generate_token();
             f.action += "?{{ request.query_params|safe }}";
 
             return true;

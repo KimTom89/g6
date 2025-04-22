@@ -35,14 +35,17 @@ async def get_variety_bo_table(
 
 
 async def get_variety_tokens(
-    token_form: Annotated[str, Form(alias="token")] = None,
+    request: Request,
     token_query: Annotated[str, Query(alias="token")] = None
 ):
+    """요청 매개변수의 유형별 토큰을 수신, 하나의 토큰만 반환
+    - form, query 순으로 우선순위를 가짐
     """
-    요청 매개변수의 유형별 토큰을 수신, 하나의 토큰만 반환
-    - 함수의 매개변수 순서대로 우선순위를 가짐
-    """
-    return token_form or token_query
+    # 의존성 충돌이 발생 할 수 있으므로 직접 호출
+    form_data = await request.form()
+    form_csrf_token = form_data.get("csrf_token")
+
+    return form_csrf_token or token_query
 
 
 async def get_variety_theme(

@@ -33,7 +33,7 @@
     <input type="hidden" name="view" value="{{ query_params.view }}">
 
     {% if request.state.is_super_admin %}
-    <input type="hidden" name="token" value="">
+    <input type="hidden" name="csrf_token" value="">
 
     <div class="admin_new_btn">
         <button type="submit" title="선택삭제" class="btn_b01 btn">
@@ -128,7 +128,6 @@
             return false;
         }
 
-        f.token.value = generate_token();
         f.action = "./new_delete?{{ query_params|safe }}";
 
         return true;

@@ -8,7 +8,7 @@
 <form  method="post" name="fboardgroup" id="fboardgroup" action="/admin/boardgroup_form_update?{{ request.query_params }}" onsubmit="return fboardgroup_check(this);" enctype="multipart/form-data" autocomplete="off">
     <input type="hidden" name="action" value="{{ 'u' if group else 'w' }}">
     <input type="hidden" name="gr_id" value="{{ group.gr_id if group else '' }}">
-    <input type="hidden" name="token" value="">
+    <input type="hidden" name="csrf_token" value="">
 
     <div class="tbl_frm01 tbl_wrap">
         <table>
@@ -100,8 +100,6 @@
 
 <script>
     function fboardgroup_check(f) {
-
-        f.token.value = generate_token();
 
         return true;
     }

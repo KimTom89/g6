@@ -12,7 +12,7 @@
 
 <form name="frmsendmailselectform" method="post" action="/admin/mail_select_list" onsubmit="return frmsendmailselectform_submit(this);" autocomplete="off">
     <input type="hidden" name="ma_id" value="{{ mail.ma_id }}">
-    <input type="hidden" name="token" value="">
+    <input type="hidden" name="csrf_token" value="">
 
     <div class="tbl_frm01 tbl_wrap">
         <table>
@@ -69,12 +69,6 @@
 
 <script>
     function frmsendmailselectform_submit(f) {
-        f.token.value = generate_token();
-        if (!f.token.value) {
-            alert("토큰 생성에 실패하였습니다.");
-            return false;
-        }
-
         return true;
     }
 </script>

@@ -22,7 +22,7 @@
     </form>
 
     <form name="fauthlist" id="fauthlist" method="post" action="/admin/auth_list_delete?{{ query_params|safe }}" onsubmit="return fauthlist_submit(this);">
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
         <div class="tbl_head01 tbl_wrap">
             <table>
                 <thead>
@@ -68,7 +68,7 @@
     {{ paging|safe }}
 
     <form name="fauthlist2" id="fauthlist2" action="/admin/auth_update?{{ query_params|safe }}" method="post" autocomplete="off" onsubmit="return fauth_add_submit(this);">
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
 
         <section id="add_admin">
             <h2 class="h2_frm">관리권한 추가</h2>
@@ -144,9 +144,6 @@
                 }
             }
 
-            f.token.value = generate_token();
-            
-
             return true;
         }
 
@@ -161,8 +158,6 @@
                     return false;
                 }
             }
-
-            f.token.value = generate_token();
 
             return true;
         }

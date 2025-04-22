@@ -27,7 +27,7 @@
     </form>
 
     <form name="fboardlist" id="fboardlist" action="/admin/board_list_update" onsubmit="return fboardlist_submit(this);" method="post">
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
         <div class="tbl_head01 tbl_wrap">
             <table>
                 <caption>게시판관리 목록</caption>
@@ -151,7 +151,6 @@
             f.action = "/admin/board_list_delete";
         }
 
-        f.token.value = generate_token();
         f.action += "?{{ request.query_params|safe }}";
 
         return true;

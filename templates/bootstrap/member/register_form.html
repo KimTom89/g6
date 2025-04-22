@@ -14,7 +14,7 @@
     <form id="fregisterform" class="mb-4 py-3" name="fregisterform" action="{{ form.action_url }}"
           onsubmit="return fregisterform_submit(this)" method="post" enctype="multipart/form-data" autocomplete="off">
         <input type="hidden" name="is_register" value="{{ is_register }}"/>
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
 <!--        <input type="hidden" name="cert_type" value="">-->
 <!--        <input type="hidden" name="cert_no" value="">-->
         <input type="hidden" name="mb_sex" value="">
@@ -441,9 +441,6 @@
             }
 
             document.getElementById("btn_submit").disabled = true;
-
-            // 토큰 생성은 폼 체크의 가장 마지막에서 한다.
-            f.token.value = generate_token();
             
             return true;
         

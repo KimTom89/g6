@@ -671,31 +671,6 @@ function get_write_token(bo_table)
 }
 
 $(function() {
-    $(document).on("click", "form[name=fwrite] input:submit, form[name=fwrite] button:submit, form[name=fwrite] input:image", function() {
-        // var f = this.form;
-
-        // if (typeof(f.bo_table) == "undefined") {
-        //     return;
-        // }
-
-        // var bo_table = f.bo_table.value;
-        // var token = get_write_token(bo_table);
-
-        // if(!token) {
-        //     alert("토큰 정보가 올바르지 않습니다.");
-        //     return false;
-        // }
-
-        // var $f = $(f);
-
-        // if(typeof f.token === "undefined")
-        //     $f.prepend('<input type="hidden" name="token" value="">');
-
-        // $f.find("input[name=token]").val(token);
-
-        return true;
-    });
-
     // 서버에서 에러 반환 시 `btn_submit` 버튼 재활성화
     // - alert창 이후 history.back()
     window.onpageshow = function(event){
@@ -763,3 +738,17 @@ function isDarkModeEnabled(btn) {
 
 // 로컬스토리지 데이터에 따라 실시간 변경
 window.addEventListener('storage', isDarkModeEnabled);
+
+
+// CSRF 토큰을 헤더에 설정하는 함수
+function setCSRFToken(form) {
+    // input 태그에 토큰 설정
+    const csrf_token = form.querySelector('input[name="csrf_token"]');
+    if (csrf_token) {
+        csrf_token.value = generate_token();
+    }
+}
+
+document.addEventListener('submit', function(e) {
+    setCSRFToken(e.target);
+});

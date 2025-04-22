@@ -20,7 +20,7 @@
 
         <form name="fwrite" id="fwrite" action="{{ url_for('qa_write_update') }}?{{ request.query_params }}" onsubmit="return fwrite_submit(this);" method="post" enctype="multipart/form-data" autocomplete="off">
 
-            <input type="hidden" name="token" value="">
+            <input type="hidden" name="csrf_token" value="">
             <input type="hidden" name="qa_id" value="{{ qa.qa_id }}">
             <input type="hidden" name="qa_related" value={{ request.query_params.get('qa_related', '') }}>
             <input type="hidden" name="qa_html" value="1">
@@ -127,8 +127,6 @@
             }
 
             document.getElementById("btn_submit").disabled = true;
-
-            f.token.value = generate_token();
 
             return true;
         }

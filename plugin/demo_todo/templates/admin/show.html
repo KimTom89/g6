@@ -49,7 +49,7 @@
     </table>
 </div>
 <form name="ftodo" action="/admin/todo/update/{{ todo.id }}" onsubmit="return frm_form_check(this);" method="get">
-    <input type="hidden" name="token" value="">
+    <input type="hidden" name="csrf_token" value="">
     <div class="btn_fixed_top">
         <a href="/admin/todo/todos" class="btn btn_02">목록</a>
         <input type="submit" value="수정" class="btn btn_submit" accesskey="s">
@@ -69,8 +69,6 @@
             error_field.focus();
             return false;
         }
-
-        f.token.value = generate_token();
 
         return true;
     }

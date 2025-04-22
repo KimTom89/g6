@@ -28,7 +28,7 @@
 {{ pg_anchor }}
 <form name="fconfigform" method="post" action="/admin/config_form_update" onsubmit="return fconfigform_submit(this);" enctype="application/x-www-form-urlencoded" autocomplete="off">
  
-  <input type="hidden" name="token" value="">
+  <input type="hidden" name="csrf_token" value="">
 
 <section id="anc_cf_basic">
     <h2 class="h2_frm">홈페이지 기본환경 설정</h2>
@@ -1046,9 +1046,6 @@
                 }
             }
         }
-
-        // 토큰 생성은 폼 체크의 가장 마지막에서 한다.
-        f.token.value = generate_token();
 
         return true;
     }

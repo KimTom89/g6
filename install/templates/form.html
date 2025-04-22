@@ -2,7 +2,7 @@
 
 {% block content %}
     <form id="frm_install" method="post" action="{{ url_for('install') }}" autocomplete="off" onsubmit="return frm_install_submit(this);">
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
         <div class="ins_inner">
             <table class="ins_frm">
                 <caption>데이터베이스 정보입력</caption>
@@ -217,12 +217,6 @@
             || !checkField(f.admin_name, "emtpy")
             || !checkField(f.admin_email, "validEmail")
         ) {
-            return false;
-        }
-
-        f.token.value = generate_token();
-        if (f.token.value == "") {
-            alert("토큰 생성에 실패하였습니다.");
             return false;
         }
 

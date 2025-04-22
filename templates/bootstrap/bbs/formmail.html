@@ -7,7 +7,7 @@
     <h1 id="win_title">{{ to_name }}님께 메일보내기</h1>
 
     <form name="fformmail" action="/bbs/formmail_send" onsubmit="return fformmail_submit(this);" method="post" enctype="multipart/form-data" style="margin:0px;">
-        <input type="hidden" name="token" value="">
+        <input type="hidden" name="csrf_token" value="">
         <input type="hidden" name="to" value="{{ to_email }}">
         <input type="hidden" name="attach" value="2">
         {% if member %}
@@ -87,7 +87,6 @@ with (document.fformmail) {
 
 function fformmail_submit(f)
 {
-
     if (f.file1.value || f.file2.value) {
         if (!confirm("첨부파일의 용량이 큰경우 전송시간이 오래 걸립니다.\n\n메일보내기가 완료되기 전에 창을 닫거나 새로고침 하지 마십시오."))
             return false;
