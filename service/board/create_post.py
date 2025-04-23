@@ -43,12 +43,12 @@ class CreatePostService(BoardService):
         instance = cls(request, db, point_service, bo_table)
         return instance
 
-    def add_point(self, write, parent_write: WriteBaseModel = None):
+    async def add_point(self, write, parent_write: WriteBaseModel = None):
         """포인트 추가"""
         if self.member.mb_id:
             point = self.board.bo_comment_point if parent_write else self.board.bo_write_point
             content = f"{self.board.bo_subject} {write.wr_id} 글" + ("답변" if parent_write else "쓰기")
-            self.point_service.save_point(self.member.mb_id, point, content,
+            await self.point_service.save_point(self.member.mb_id, point, content,
                                           self.bo_table, write.wr_id, "쓰기")
 
     def save_write(self, parent_id, data: Union[WriteForm, WriteModel]):
@@ -104,15 +104,15 @@ class MoveUpdateService(BoardService):
         instance = cls(request, db, file_service, bo_table, sw)
         return instance
 
-    def get_origin_writes(self, wr_ids: str) -> List[WriteBaseModel]:
+    async def get_origin_writes(self, wr_ids: str) -> List[WriteBaseModel]:
         """선택된 원본 글들을 가져옵니다."""
-        origin_writes = self.db.scalars(
+        origin_writes = (await self.db.scalars(
             select(self.write_model)
             .where(self.write_model.wr_id.in_(wr_ids.split(',')))
-        ).all()
+        )).all()
         return origin_writes
 
-    def move_copy_post(self, target_bo_tables: list, origin_writes: WriteBaseModel):
+    async def move_copy_post(self, target_bo_tables: list, origin_writes: WriteBaseModel):
         """게시글들을 복사/이동 합니다."""
         origin_board = self.board
         origin_bo_table = self.bo_table
@@ -154,14 +154,14 @@ class MoveUpdateService(BoardService):
 
                 # 게시글 추가
                 self.db.add(target_write)
-                self.db.commit()
+                await self.db.commit()
                 # 부모아이디 설정
                 target_write.wr_parent = target_write.wr_id
-                self.db.commit()
+                await self.db.commit()
 
                 if self.sw == WriteTransportation.MOVE.value:
                     # 최신글 이동
-                    self.db.execute(
+                    await self.db.execute(
                         update(BoardNew)
                         .where(BoardNew.bo_table == origin_board.bo_table, BoardNew.wr_id == origin_write.wr_id)
                         .values(bo_table=target_bo_table, wr_id=target_write.wr_id, wr_parent=target_write.wr_id)
@@ -169,29 +169,29 @@ class MoveUpdateService(BoardService):
                     # 게시글
                     if not origin_write.wr_is_comment:
                         # 추천데이터 이동
-                        self.db.execute(
+                        await self.db.execute(
                             update(BoardGood)
                             .where(BoardGood.bo_table == target_bo_table, BoardGood.wr_id == target_write.wr_id)
                             .values(bo_table=target_bo_table, wr_id=target_write.wr_id)
                         )
                         # 스크랩 이동
-                        self.db.execute(
+                        await self.db.execute(
                             update(Scrap)
                             .where(Scrap.bo_table == target_bo_table, Scrap.wr_id == target_write.wr_id)
                             .values(bo_table=target_bo_table, wr_id=target_write.wr_id)
                         )
                     # 기존 데이터 삭제
-                    self.db.delete(origin_write)
-                    self.db.commit()
+                    await self.db.delete(origin_write)
+                    await self.db.commit()
 
                 # 파일이 존재할 경우
                 if self.file_service.is_exist(origin_board.bo_table, origin_write.wr_id):
                     if self.sw == WriteTransportation.MOVE.value:
-                        self.file_service.move_board_files(CreatePostService.FILE_DIRECTORY,
+                        await self.file_service.move_board_files(CreatePostService.FILE_DIRECTORY,
                                                            origin_bo_table, origin_write.wr_id,
                                                            target_bo_table, target_write.wr_id)
                     else:
-                        self.file_service.copy_board_files(CreatePostService.FILE_DIRECTORY,
+                        await self.file_service.copy_board_files(CreatePostService.FILE_DIRECTORY,
                                                            origin_bo_table, origin_write.wr_id,
                                                            target_bo_table, target_write.wr_id)
             # 최신글 캐시 삭제

@@ -11,7 +11,7 @@ from sqlalchemy import and_, asc, desc, func, insert, or_, select
 from sqlalchemy.sql.expression import Select
 from sqlalchemy.orm import Session
 
-from core.database import DBConnect
+from core.database import DBConnect, db_session
 from core.exception import AlertException
 from core.models import Board, BoardNew, Member, WriteBaseModel
 from core.template import TemplateService, UserTemplates
@@ -547,7 +547,7 @@ def get_next_num(bo_table: str) -> int:
         db.close()
 
 
-def get_list(request: Request, db: Session, write: WriteBaseModel, board_config: BoardConfig, subject_len: int = 0):
+async def get_list(request: Request, db: db_session, write: WriteBaseModel, board_config: BoardConfig, subject_len: int = 0):
     """게시글 목록의 출력에 필요한 정보를 추가합니다.
     - 그누보드5의 get_list와 동일한 기능을 합니다.
 
@@ -570,7 +570,7 @@ def get_list(request: Request, db: Session, write: WriteBaseModel, board_config:
     write.icon_secret = "secret" in write.wr_option
     write.icon_hot = board_config.is_icon_hot(write.wr_hit)
     write.icon_new = board_config.is_icon_new(write.wr_datetime)
-    write.icon_file = file_service.is_exist(board_config.board.bo_table, write.wr_id)
+    write.icon_file = await file_service.is_exist(board_config.board.bo_table, write.wr_id)
     write.icon_link = write.wr_link1 or write.wr_link2
     write.icon_reply = write.wr_reply
 
@@ -663,7 +663,7 @@ def is_owner(mb_id_object: object, mb_id: str = None):
         return False
 
 
-def send_write_mail(request: Request, board: Board, write: WriteBaseModel, origin_write: WriteBaseModel = None):
+async def send_write_mail(request: Request, board: Board, write: WriteBaseModel, origin_write: WriteBaseModel = None):
     """게시글/답글/댓글 작성 시, 메일을 발송한다.
 
     Args:
@@ -675,7 +675,7 @@ def send_write_mail(request: Request, board: Board, write: WriteBaseModel, origi
     with DBConnect().sessionLocal() as db:
         config = request.state.config
         templates = Jinja2Templates(
-                directory=TemplateService.get_templates_dir())
+                directory=await TemplateService.get_templates_dir())
 
         def _add_admin_email(admin_id: str):
             admin = db.scalar(select(Member).filter_by(mb_id=admin_id))
@@ -899,7 +899,7 @@ def get_bo_table_list(added_bo_table_list: List[str] = None) -> list:
     return bo_table_list
 
 
-def render_latest_posts(request: Request, skin_name: str = 'basic', bo_table: str='',
+async def render_latest_posts(request: Request, skin_name: str = 'basic', bo_table: str='',
                         rows: int = 10, subject_len: int = 40):
     """최신글 목록 HTML 출력
 
@@ -925,9 +925,9 @@ def render_latest_posts(request: Request, skin_name: str = 'basic', bo_table: st
     if os.path.exists(cache_file):
         return file_cache.get(cache_file)
 
-    with DBConnect().sessionLocal() as db:
+    async with DBConnect()._sessionLocal() as db: 
         # 게시판 설정
-        board = db.get(Board, bo_table)
+        board = await db.get(Board, bo_table)
         if not board:
             return ""
 
@@ -936,14 +936,14 @@ def render_latest_posts(request: Request, skin_name: str = 'basic', bo_table: st
 
         #게시글 목록 조회
         write_model = dynamic_create_write_table(bo_table)
-        writes = db.scalars(
+        writes = (await db.scalars(
             select(write_model)
             .where(write_model.wr_is_comment == 0)
             .order_by(write_model.wr_num)
             .limit(rows)
-        ).all()
+        )).all()
         for write in writes:
-            write = get_list(request, db, write, board_config, subject_len)
+            write = await get_list(request, db, write, board_config, subject_len)
 
     context = {
         "request": request,

@@ -171,10 +171,10 @@ class CommentService(UpdatePostService):
         self.db.commit()
         return comment
 
-    def add_point(self, comment: WriteBaseModel):
+    async def add_point(self, comment: WriteBaseModel):
         """포인트 추가"""
         if self.member.mb_id:
             point = self.board.bo_comment_point
             content = f"{self.board.bo_subject} {comment.wr_parent}-{comment.wr_id} 댓글쓰기"
-            self.point_service.save_point(self.member.mb_id, point, content,
+            await self.point_service.save_point(self.member.mb_id, point, content,
                                           self.bo_table, comment.wr_id, "댓글")

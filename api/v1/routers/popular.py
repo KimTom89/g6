@@ -26,7 +26,7 @@ async def read_populars(
     인기 검색어 목록을 조회합니다.
     - TTLCache(Time-To-Live) 캐시를 사용하여 조회합니다.
     """
-    return service.fetch_populars(data.limit, data.day)
+    return await service.fetch_populars(data.limit, data.day)
 
 
 @router.post("/populars",

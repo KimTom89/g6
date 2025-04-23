@@ -28,7 +28,8 @@ class MemberRefreshToken(Base):
 #       - 설치할 때 같이 만들것인지
 #       - API사용 옵션을 두어서 설정할 때 만들것인지 등등..
 #   2. 만료된 Refresh Token을 주기적으로 삭제하는 작업이 필요함
-MemberRefreshToken.__table__.create(bind=DBConnect().engine, checkfirst=True)
+#   3. 25.04.22 임시 주석처리함.
+# MemberRefreshToken.__table__.create(bind=DBConnect().engine, checkfirst=True)
 
 
 class Tags(Enum):

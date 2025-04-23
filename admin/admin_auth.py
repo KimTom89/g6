@@ -34,7 +34,7 @@ async def auth_list(
     """
     request.session["menu_key"] = AUTH_MENU_KEY
 
-    result = select_query(
+    result = await select_query(
         request,
         db,
         Auth,
@@ -55,8 +55,9 @@ async def auth_list(
         })
 
     # 닉네임, 권한이름 추가
+    # Todo: mb_nick은 selectinload 처리 필요
     for row in result['rows']:
-        row.mb_nick = row.member.mb_nick
+        row.mb_nick = await db.scalar(select(Member.mb_nick).where(Member.mb_id == row.mb_id))
         row.au_name = auth_child_menu.get(row.au_menu, '')
 
     # auth_child_menu 키값으로 정렬
@@ -96,22 +97,22 @@ async def auth_update(
     """
     관리자페이지 권한 등록 및 수정
     """
-    exists_member = db.scalar(select(Member).where(Member.mb_id == mb_id))
+    exists_member = await db.scalar(select(Member).where(Member.mb_id == mb_id))
     if not exists_member:
         raise AlertException(f"{mb_id} : 회원이 존재하지 않습니다.")
 
     auth_values = [val for val in [r, w, d] if val]  # r, w, d 중 값이 있는 것만 선택
     auth_string = ','.join(auth_values)  # 선택된 값들을 쉼표로 구분하여 문자열 생성
 
-    exists_auth = db.scalar(select(Auth).filter_by(mb_id=mb_id, au_menu=au_menu))
+    exists_auth = await db.scalar(select(Auth).filter_by(mb_id=mb_id, au_menu=au_menu))
     if exists_auth:
         # 수정
-        db.execute(
+        await db.execute(
             update(Auth)
             .where(Auth.mb_id == mb_id, Auth.au_menu == au_menu)
             .values(au_auth=auth_string)
         )
-        db.commit()
+        await db.commit()
     else:
         # 추가
         auth = Auth(
@@ -120,7 +121,7 @@ async def auth_update(
             au_auth=auth_string,
         )
         db.add(auth)
-        db.commit()
+        await db.commit()
 
     url = "/admin/auth_list"
     query_params = request.query_params
@@ -139,8 +140,8 @@ async def auth_list_delete(
     관리자페이지 권한 삭제
     """
     for i in checks:
-        db.execute(delete(Auth).filter_by(mb_id=mb_id[i], au_menu=au_menu[i]))
-        db.commit()
+        await db.execute(delete(Auth).filter_by(mb_id=mb_id[i], au_menu=au_menu[i]))
+        await db.commit()
 
     url = "/admin/auth_list"
     query_params = request.query_params

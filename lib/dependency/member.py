@@ -92,7 +92,7 @@ def validate_password_reset(
     return create_hash(mb_password)
 
 
-def validate_certify_email_member(
+async def validate_certify_email_member(
     member_service: Annotated[MemberService, Depends()],
     mb_id: str = Path(...),
     key: str = Path(...)
@@ -100,7 +100,7 @@ def validate_certify_email_member(
     """
     인증 이메일 변경시 회원 정보의 유효성을 검사합니다.
     """
-    member = member_service.fetch_member_by_id(mb_id)
+    member = await member_service.fetch_member_by_id(mb_id)
 
     if not is_none_datetime(member.mb_email_certify):
         raise AlertException("이미 메일인증을 진행한 회원입니다.", 409)

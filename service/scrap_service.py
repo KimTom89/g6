@@ -31,13 +31,13 @@ class ScrapService(BaseService):
     def raise_exception(self, status_code: int = 400, detail: str = None, url: str = None) -> None:
         raise AlertException(detail, status_code, url)
 
-    def fetch_total_records(self, member: Member) -> int:
+    async def fetch_total_records(self, member: Member) -> int:
         """
         스크랩 목록의 총 개수를 데이터베이스에서 조회합니다.
         """
         # request.state.login_member로 받는 경우
         # 세션이 달라져서 현재 세션으로 재 연결해야함
-        member = self.member_servce.fetch_member_by_id(member.mb_id)
+        member = await self.member_servce.fetch_member_by_id(member.mb_id)
         return member.scraps.count()
 
     def fetch_scraps(self, member: Member, offset: int = 0, records_per_page: int = 10):

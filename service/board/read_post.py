@@ -127,7 +127,7 @@ class ReadPostService(BoardService):
         self.validate_secret(redirect_password_view=True)
         self.request.session[session_name] = True
 
-    def _validate_repeat(self):
+    async def _validate_repeat(self):
         """
         게시글 작성자는 조회수, 포인트 처리를 하지 않는다.
         session을 통한 검증(validate_repeat_with_session)과
@@ -146,7 +146,7 @@ class ReadPostService(BoardService):
                     message += f" 로그인 후 다시 시도해주세요."
                 raise self.raise_exception(detail=message, status_code=403)
             else:
-                self.point_service.save_point(
+                await self.point_service.save_point(
                     self.member.mb_id, read_point, f"{self.board.bo_subject} {self.write.wr_id} 글읽기",
                     self.board.bo_table, self.write.wr_id, "읽기")
         # 조회수 증가
@@ -339,7 +339,7 @@ class DownloadFileService(BoardService):
             self.raise_exception(detail="파일이 존재하지 않습니다.", status_code=404)
         return board_file
 
-    def validate_point_session(self, board_file):
+    async def validate_point_session(self, board_file):
         """게시물당 포인트가 한번만 차감되도록 세션 설정"""
         session_name = f"ss_down_{self.bo_table}_{self.wr_id}"
         if not self.request.session.get(session_name):
@@ -353,7 +353,7 @@ class DownloadFileService(BoardService):
                         message += "\\n로그인 후 다시 시도해주세요."
                     self.raise_exception(detail=message, status_code=403)
                 else:
-                    self.point_service.save_point(
+                    await self.point_service.save_point(
                         self.member.mb_id, download_point,
                         f"{self.board.bo_subject} {self.wr_id} 파일 다운로드", self.bo_table,
                         self.wr_id, "다운로드")
@@ -363,6 +363,6 @@ class DownloadFileService(BoardService):
         download_session_name = f"ss_down_{self.bo_table}_{self.wr_id}_{board_file.bf_no}"
         if not self.request.session.get(download_session_name):
             # 다운로드 횟수 증가
-            self.file_service.update_download_count(board_file)
+            await self.file_service.update_download_count(board_file)
             # 파일 다운로드 세션 설정
             self.request.session[download_session_name] = True

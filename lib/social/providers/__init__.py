@@ -1,8 +1,10 @@
 import importlib
 import logging
 import pkgutil
-
-from sqlalchemy import select, inspect
+import asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql import select
+from sqlalchemy.inspection import inspect
 
 from core.database import DBConnect
 from core.models import Config
@@ -25,13 +27,27 @@ __all__ = [
     "twitter",
 ]
 
-
-with DBConnect().sessionLocal() as db:
-    # 설치되기 전에는 config 테이블이 없으므로 확인.
-    if inspect(DBConnect().engine).has_table(DBConnect().table_prefix + "config"):
-        try:
-            config = db.scalar(select(Config))
-            # 서버시작시 소셜로그인 설정을 불러온다.
-            register_social_provider(config)
-        except Exception as e:
-            logging.warning("소셜로그인 설정을 불러올 수 없습니다. " + str(e.args[0]))
+# 비동기 함수로 변경
+async def load_social_config():
+    async_session = DBConnect()._sessionLocal()
+    try:
+        # 테이블 존재 여부 확인 (비동기 방식)
+        # SQLAlchemy 비동기 inspect 방식 사용
+        async with DBConnect().engine.connect() as conn:
+            insp = await conn.run_sync(lambda sync_conn: inspect(sync_conn))
+            has_table = await conn.run_sync(
+                lambda sync_conn: insp.has_table(DBConnect().table_prefix + "config")
+            )
+            
+            if has_table:
+                # 설정 데이터 가져오기
+                result = await async_session.execute(select(Config))
+                config = result.scalar_one_or_none()
+                
+                if config:
+                    # 서버시작시 소셜로그인 설정을 불러온다
+                    register_social_provider(config)
+    except Exception as e:
+        logging.warning("소셜로그인 설정을 불러올 수 없습니다. " + str(e.args[0]))
+    finally:
+        await async_session.close()

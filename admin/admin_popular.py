@@ -36,7 +36,7 @@ async def popular_list(
     request.session["menu_key"] = LIST_MENU_KEY
 
     # 인기검색어 목록 데이터 출력
-    keywords = select_query(
+    keywords = await select_query(
         request,
         db,
         Popular,
@@ -66,11 +66,12 @@ async def popular_delete(
     인기검색어 목록 삭제
     """
     # in 조건을 사용해서 일괄 삭제
-    db.execute(delete(Popular).where(Popular.pp_id.in_(checks)))
-    db.commit()
+    await db.execute(delete(Popular).where(Popular.pp_id.in_(checks)))
+    await db.commit()
 
     # 기존 캐시 삭제
-    service.fetch_populars().cache_clear()
+    # 25.04.23 비동기처리로 인한 일시적 캐시사용 중지
+    # service.fetch_populars().cache_clear()
 
     url = "/admin/popular_list"
     query_params = request.query_params
@@ -116,18 +117,19 @@ async def popular_rank(
     )
 
     # 페이징 처리
-    total_count = db.scalar(
+    total_count = await db.scalar(
         query.add_columns(func.count(inline_view.columns.pp_word)).order_by(None)
     )
     offset = (current_page - 1) * records_per_page
-    ranks = db.execute(
+    ranks = await db.execute(
         query.add_columns(
             inline_view,
             func.dense_rank().over(
                 order_by=desc(inline_view.columns.search_count)
             ).label('ranking')  # 순위
         ).offset(offset).limit(records_per_page)
-    ).all()
+    )
+    ranks = ranks.all()
 
     context = {
         "request": request,

@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 
 from core.database import db_session
-from core.models import BoardNew, Member, Point
+from core.models import Board, BoardNew, Member, Point
 from core.template import AdminTemplates
 from lib.common import dynamic_create_write_table
 from lib.dependency.dependencies import check_admin_access
@@ -81,33 +82,37 @@ async def base(request: Request, db: db_session):
         query = query.where(Member.mb_level <= member_level)
 
     # 전체 회원
-    total_member_count = db.scalar(query.add_columns(func.count(Member.mb_id)))
+    total_member_count = await db.scalar(query.add_columns(func.count(Member.mb_id)))
 
     # 탈퇴 회원
-    leave_count = db.scalar(
+    leave_count = await db.scalar(
         query.add_columns(func.count(Member.mb_id))
         .where(Member.mb_leave_date != '')
     )
 
     # 차단 회원
-    intercept_count = db.scalar(
+    intercept_count = await db.scalar(
         query.add_columns(func.count(Member.mb_id))
         .where(Member.mb_intercept_date != '')
     )
 
     # 신규 가입 회원
-    new_members = db.scalars(
+    query_result = await db.scalars(
         query.add_columns(Member)
+        .options(selectinload(Member.groups))
         .order_by(Member.mb_datetime.desc())
         .limit(new_member_rows)
-    ).all()
+    )
+    new_members = query_result.all()
 
     # 최근 게시물
-    new_writes = db.scalars(
+    query_result = await db.scalars(
         select(BoardNew)
+        .options(selectinload(BoardNew.board).selectinload(Board.group))
         .order_by(BoardNew.bn_id.desc())
         .limit(new_board_rows)
-    ).all()
+    )
+    new_writes = query_result.all()
 
     for new in new_writes:
         new.gr_id = new.board.gr_id
@@ -115,7 +120,7 @@ async def base(request: Request, db: db_session):
         new.bo_subject = new.board.bo_subject
 
         write_model = dynamic_create_write_table(new.bo_table)
-        new.write = db.get(write_model, new.wr_id)
+        new.write = await db.get(write_model, new.wr_id)
         if not new.write:
             continue
 
@@ -132,12 +137,14 @@ async def base(request: Request, db: db_session):
 
     # 최근 포인트 발생 내역
     query = select()
-    total_point_count = db.scalar(query.add_columns(func.count(Point.po_id)))
-    new_points = db.scalars(
+    total_point_count = await db.scalar(query.add_columns(func.count(Point.po_id)))
+    query_result = await db.scalars(
         query.add_columns(Point)
+        .options(selectinload(Point.member))
         .order_by(Point.po_id.desc())
         .limit(5)
-    ).all()
+    )
+    new_points = query_result.all()
 
     for point in new_points:
         rel_table = point.po_rel_table or ""

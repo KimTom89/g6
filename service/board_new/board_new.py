@@ -159,7 +159,7 @@ class BoardNewService(BaseService):
 
         return boards_info
 
-    def delete_board_news(self, bn_ids: list):
+    async def delete_board_news(self, bn_ids: list):
         """최신글 삭제"""
         # 새글 정보 조회
         board_news = self.db.scalars(select(BoardNew).where(BoardNew.bn_id.in_(bn_ids))).all()
@@ -175,7 +175,7 @@ class BoardNewService(BaseService):
 
                     # 원글 포인트 삭제
                     if not self.point_service.delete_point(write.mb_id, board.bo_table, write.wr_id, "쓰기"):
-                        self.point_service.save_point(write.mb_id, board.bo_write_point * (-1),
+                        await self.point_service.save_point(write.mb_id, board.bo_write_point * (-1),
                                                       f"{board.bo_subject} {write.wr_id} 글 삭제")
                 else:
                     # 댓글 삭제
@@ -184,7 +184,7 @@ class BoardNewService(BaseService):
 
                     # 댓글 포인트 삭제
                     if not self.point_service.delete_point(write.mb_id, board.bo_table, write.wr_id, "댓글"):
-                        self.point_service.save_point(write.mb_id, board.bo_comment_point * (-1),
+                        await self.point_service.save_point(write.mb_id, board.bo_comment_point * (-1),
                                                       f"{board.bo_subject} {write.wr_parent}-{write.wr_id} 댓글 삭제")
                 # 파일 삭제
                 self.file_service.delete_board_files(board.bo_table, write.wr_id)

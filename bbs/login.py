@@ -42,7 +42,7 @@ async def login(
         auto_login: bool = Form(default=False),
 ):
     """로그인 폼화면에서 로그인"""
-    member = member_service.authenticate_member(mb_id, mb_password)
+    member = await member_service.authenticate_member(mb_id, mb_password)
 
     request.session["ss_mb_id"] = member.mb_id
     # XSS 공격에 대응하기 위하여 회원의 고유키를 생성해 놓는다.

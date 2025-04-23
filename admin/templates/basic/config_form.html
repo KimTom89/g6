@@ -50,7 +50,14 @@
                 </tr>
                 <tr>
                     <th scope="row"><label for="cf_admin">최고관리자<strong class="blind">필수</strong></label></th>
-                    <td colspan="3">{{ get_member_id_select('cf_admin', 10, config.cf_admin, 'required')|safe }}</td>
+                    <td colspan="3">
+                        <select id="cf_admin" name="cf_admin" required>
+                            <option value="">선택하세요</option>
+                            {% for admin_id in admin_ids %}
+                                <option value="{{ admin_id }}" {{ get_selected(config.cf_admin, admin_id) }}>{{ admin_id }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
                 </tr>
                 <tr>
                     <th scope="row"><label for="cf_admin_email">관리자 메일 주소<strong class="blind">필수</strong></label></th>

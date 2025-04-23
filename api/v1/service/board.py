@@ -246,19 +246,19 @@ class DownloadFileServiceAPI(DownloadFileService):
     def raise_exception(self, status_code: int, detail: str = None):
         raise HTTPException(status_code=status_code, detail=detail)
 
-    def validate_point(self, board_file):
+    async def validate_point(self, board_file):
         """다운로드 포인트 검사"""
         if not self.config.cf_use_point:
             return
 
         download_point = self.board.bo_download_point
         if self.is_download_point(self.write):
-            self.point_service.save_point(
+            await self.point_service.save_point(
                 self.member.mb_id, download_point,
                 f"{self.board.bo_subject} {self.wr_id} 파일 다운로드", self.bo_table,
                 self.wr_id, "다운로드")
             # 다운로드 횟수 증가
-            self.file_service.update_download_count(board_file)
+            await self.file_service.update_download_count(board_file)
             return
         
         point = number_format(abs(download_point))

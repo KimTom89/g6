@@ -51,7 +51,7 @@ class GroupBoardListService(BoardService):
         if self.request.state.device == "mobile":
             self.raise_exception(detail=f"{self.group.gr_subject} 그룹은 모바일에서만 접근할 수 있습니다.", status_code=403)
 
-    def get_boards_in_group(self) -> List[Board]:
+    async def get_boards_in_group(self) -> List[Board]:
         """게시판 그룹에 속한 게시판 목록 조회"""
         # 그룹별 게시판 목록 조회
         query = (
@@ -67,5 +67,5 @@ class GroupBoardListService(BoardService):
         if not self.member.admin_type:
             query = query.filter_by(bo_use_cert="")
 
-        boards = self.db.scalars(query).all()
-        return boards
+
+        return (await self.db.scalars(query)).all()

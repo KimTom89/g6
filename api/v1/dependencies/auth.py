@@ -15,7 +15,7 @@ from api.v1.auth.jwt import JWT
 from api.v1.service.member import MemberServiceAPI
 
 
-def authenticate_member(
+async def authenticate_member(
     service: Annotated[MemberServiceAPI, Depends()],
     form: Annotated[OAuth2PasswordRequestForm, Depends()]
 ) -> Member:
@@ -31,7 +31,7 @@ def authenticate_member(
     Returns:
         Member: 회원 객체
     """
-    return service.authenticate_member(form.username, form.password)
+    return await service.authenticate_member(form.username, form.password)
 
 
 def authenticate_refresh_token(

@@ -131,12 +131,12 @@ class PollService(BaseService):
         self.db.delete(poll_etc)
         self.db.commit()
 
-    @cached(LRUCache(maxsize=1), key=lambda _: hashkey("latest_poll"))
-    def fetch_latest_poll(self):
+    # @cached(LRUCache(maxsize=1), key=lambda _: hashkey("latest_poll"))
+    async def fetch_latest_poll(self):
         """
         사용 설정된 최신 설문조사 1건을 조회합니다.
         """
-        latest_poll = self.db.scalar(
+        latest_poll = await self.db.scalar(
             select(Poll)
             .where(Poll.po_use == 1)
             .order_by(Poll.po_id.desc())

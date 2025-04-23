@@ -148,7 +148,7 @@ async def check_group_access(
 async def check_admin_access(request: Request):
     """관리자페이지 접근권한 체크"""
 
-    with DBConnect().sessionLocal() as db:
+    async with DBConnect()._sessionLocal() as db: 
         path = request.url.path
         ss_mb_id = request.session.get("ss_mb_id", "")
 
@@ -160,7 +160,7 @@ async def check_admin_access(request: Request):
 
             # 관리자 메뉴에 대한 권한 체크
             if admin_menu_id:
-                au_auth = db.scalar(
+                au_auth = await db.scalar(
                     select(Auth.au_auth)
                     .where(Auth.mb_id == ss_mb_id, Auth.au_menu == admin_menu_id)
                 ) or ""
@@ -174,7 +174,7 @@ async def check_admin_access(request: Request):
                     raise AlertException("읽기 권한이 없습니다.", 302, url="/")
             # 관리자메인은 메뉴ID가 없으므로, 다른 메뉴의 권한이 있는지 확인
             else:
-                exists_auth = db.scalar(
+                exists_auth = await db.scalar(
                     exists(Auth)
                     .where(Auth.mb_id == ss_mb_id).select()
                 )
@@ -185,7 +185,7 @@ async def check_admin_access(request: Request):
 
 async def common_search_query_params(
         sst: str = Query(default="", title="정렬 필드", description="정렬 필드"),
-        sod: str = Query(default="and", title="검색연산자", description="검색연산자", pattern="and|or"),
+        sod: str = Query(default="and", title="검색연산자", description="검색연산자", pattern="^(and|or)?$"),
         sfl: str = Query(default="wr_subject||wr_content", title="검색필드", description="검색필드"),
         stx: str = Query(default="", title="검색어", description="검색어"),
         sca: str = Query(default="", title="분류", description="검색 분류"),
@@ -226,13 +226,17 @@ async def set_template_basic_data(
     popular_service: Annotated[PopularService, Depends()]
 ):
     """템플릿 기본 조회 데이터 설정"""
-    template_data = {
-        "current_login_count": current_connect_service.fetch_total_records(),
-        "menus": menu_service.fetch_menus(),
-        "poll": poll_service.fetch_latest_poll(),
-        "populars": popular_service.fetch_populars(),
+    current_login_count = await current_connect_service.fetch_total_records()
+    menus = await menu_service.fetch_menus()
+    poll = await poll_service.fetch_latest_poll()
+    populars = await popular_service.fetch_populars()
+
+    request.state.template_data = {
+        "current_login_count": current_login_count,
+        "menus": menus,
+        "poll": poll,
+        "populars": populars,
     }
-    request.state.template_data = template_data
 
 
 async def set_current_connect(
@@ -246,14 +250,14 @@ async def set_current_connect(
         mb_id = getattr(member, "mb_id", "")
 
         if not request.state.is_super_admin:
-            current_login = service.fetch_current_connect(current_ip)
+            current_login = await service.fetch_current_connect(current_ip)
             if current_login:
-                service.update_current_connect(current_login, path, mb_id)
+                await service.update_current_connect(current_login, path, mb_id)
             else:
-                service.create_current_connect(current_ip, path, mb_id)
+                await service.create_current_connect(current_ip, path, mb_id)
 
         # 현재 로그인한 이력 삭제
-        service.delete_current_connect()
+        await service.delete_current_connect()
 
     except ProgrammingError as e:
         print(e)

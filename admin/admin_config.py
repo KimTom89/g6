@@ -1,4 +1,5 @@
 """기본환경설정 관리 Template Router"""
+
 import re
 import socket
 from typing import List
@@ -10,19 +11,19 @@ from sqlalchemy import select
 from core.database import db_session
 from core.exception import AlertException
 from core.formclass import ConfigForm
-from core.models import Config
+from core.models import Config, Member
 from core.template import AdminTemplates
 from lib.common import get_client_ip, get_host_public_ip
 from lib.dependency.dependencies import validate_super_admin, validate_token
 from lib.template_functions import (
-    get_editor_select, get_member_level_select, get_skin_select,
-    get_member_id_select
+    get_editor_select,
+    get_member_level_select,
+    get_skin_select,
 )
 
 router = APIRouter()
 templates = AdminTemplates()
 # 파이썬 함수 및 변수를 jinja2 에서 사용할 수 있도록 등록
-templates.env.globals["get_member_id_select"] = get_member_id_select
 templates.env.globals["get_skin_select"] = get_skin_select
 templates.env.globals["get_editor_select"] = get_editor_select
 templates.env.globals["get_member_level_select"] = get_member_level_select
@@ -31,7 +32,10 @@ CONFIG_MENU_KEY = "100100"
 
 
 @router.get("/config_form", dependencies=[Depends(validate_super_admin)])
-async def config_form(request: Request):
+async def config_form(
+    request: Request,
+    db: db_session,
+):
     """
     기본환경설정 폼
     """
@@ -42,6 +46,11 @@ async def config_form(request: Request):
     host_public_ip = await get_host_public_ip()
     client_ip = get_client_ip(request)
 
+    # 최고관리자 목록 조회
+    admin_ids = (
+        await db.scalars(select(Member.mb_id).where(Member.mb_level >= 10))
+    ).all()
+
     context = {
         "request": request,
         "config": request.state.config,
@@ -49,13 +58,15 @@ async def config_form(request: Request):
         "host_ip": host_ip,
         "host_public_ip": host_public_ip,
         "client_ip": client_ip,
+        "admin_ids": admin_ids,
     }
     return templates.TemplateResponse("config_form.html", context)
 
 
-@router.post("/config_form_update",
-             dependencies=[Depends(validate_token),
-                           Depends(validate_super_admin)])
+@router.post(
+    "/config_form_update",
+    dependencies=[Depends(validate_token), Depends(validate_super_admin)],
+)
 async def config_form_update(
     request: Request,
     db: db_session,
@@ -74,25 +85,31 @@ async def config_form_update(
                 continue
             pattern = pattern.replace(".", r"\.")
             pattern = pattern.replace("+", r"[0-9\.]+")
-            if re.match(fr"^{pattern}$", client_ip):
-                raise AlertException("현재 접속 IP : " + client_ip + " 가 차단될수 있으므로 다른 IP를 입력해 주세요.")
+            if re.match(rf"^{pattern}$", client_ip):
+                raise AlertException(
+                    "현재 접속 IP : "
+                    + client_ip
+                    + " 가 차단될수 있으므로 다른 IP를 입력해 주세요."
+                )
 
     # 본인인증 설정 체크
-    if (form_data.cf_cert_use
-        and not any([form_data.cf_cert_ipin, form_data.cf_cert_hp, form_data.cf_cert_simple])):
-        raise AlertException("본인확인을 위해 아이핀, 휴대폰 본인확인, KG이니시스 간편인증 서비스 중 하나 이상 선택해 주십시오.")
+    if form_data.cf_cert_use and not any(
+        [form_data.cf_cert_ipin, form_data.cf_cert_hp, form_data.cf_cert_simple]
+    ):
+        raise AlertException(
+            "본인확인을 위해 아이핀, 휴대폰 본인확인, KG이니시스 간편인증 서비스 중 하나 이상 선택해 주십시오."
+        )
 
     if not form_data.cf_cert_use:
         form_data.cf_cert_ipin = form_data.cf_cert_hp = form_data.cf_cert_simple = ""
 
     # 소셜로그인 설정
     # 배열로 넘어오는 자료를 문자열로 변환. 예) "naver,kakao,facebook,google,twitter,payco"
-    form_data.cf_social_servicelist = ','.join(social_list) if social_list else ""
+    form_data.cf_social_servicelist = ",".join(social_list) if social_list else ""
 
     # 폼 데이터 반영 후 commit
-    config = db.scalars(select(Config)).one()
+    config = (await db.scalars(select(Config))).one()
     for field, value in form_data.__dict__.items():
         setattr(config, field, value)
-    db.commit()
 
     return RedirectResponse("/admin/config_form", status_code=303)

@@ -2,6 +2,7 @@
 import os
 from typing import Union
 
+import deprecated
 from fastapi import Request
 from sqlalchemy import select
 
@@ -90,38 +91,6 @@ def get_group_select(id: str, selected: str = "", attribute: str = "") -> str:
     return ''.join(html_code)
 
 
-def get_member_id_select(id: str, level: int, selected: str, attribute=""):
-    """회원아이디를 SELECT 형식으로 얻음
-
-    Args:
-        id (_type_): _description_
-        level (_type_): _description_
-        selected (_type_): _description_
-        event (str, optional): _description_. Defaults to ''.
-
-    Returns:
-        _type_: _description_
-    """
-    db = DBConnect().sessionLocal()
-    mb_ids = db.scalars(
-        select(Member.mb_id)
-        .where(Member.mb_level >= level)
-    ).all()
-    db.close()
-
-    html_code = []
-    html_code.append(f'<select id="{id}" name="{id}" {attribute}>')
-    html_code.append('<option value="">선택하세요</option>')
-
-    for mb_id in mb_ids:
-        attr = get_selected(mb_id, selected)
-        html_code.append(f'<option value="{mb_id}" {attr}>{mb_id}</option>')
-
-    html_code.append('</select>')
-
-    return ''.join(html_code)
-
-
 def get_member_level_select(id: str, start: int, end: int,
                             selected: int, attribute: str = '') -> str:
     """회원레벨을 SELECT 형식으로 얻음
@@ -148,8 +117,8 @@ def get_member_level_select(id: str, start: int, end: int,
     return ''.join(html_code)
 
 
-def get_skin_select(skin_gubun: str, id: str, selected: str,
-                    attribute: str = "", device: str = "") -> str:
+async def get_skin_select(skin_gubun: str, id: str, selected: str,
+                         attribute: str = "", device: str = "") -> str:
     """skin_gubun(new, search, connect, faq 등)에 따른 스킨을
     SELECT 형식으로 얻음
 
@@ -167,7 +136,7 @@ def get_skin_select(skin_gubun: str, id: str, selected: str,
     # Lazy import
     from core.template import TemplateService
 
-    skin_path = TemplateService.get_templates_dir() + f"/{device}/{skin_gubun}"
+    skin_path = await TemplateService.get_templates_dir() + f"/{device}/{skin_gubun}"
 
     html_code = []
     html_code.append(f'<select id="{id}" name="{id}" {attribute}>')

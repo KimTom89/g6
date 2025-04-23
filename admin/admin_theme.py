@@ -33,14 +33,14 @@ async def theme(request: Request, db: db_session):
     """
     request.session["menu_key"] = TEMPLATE_MENU_KEY
 
-    config = db.scalar(select(Config))
+    config = await db.scalar(select(Config))
     current_theme = getattr(config, "cf_theme", None)
     theme_list = get_theme_list()
 
     # 테마가 없거나 설치되어 있지 않으면 기본 테마로 변경
     if current_theme not in theme_list:
         config.cf_theme = current_theme = "basic"
-        db.commit()
+        await db.commit()
 
     # 현재 사용 중인 테마를 목록 맨 앞으로 이동
     if current_theme and current_theme in theme_list:
@@ -94,15 +94,16 @@ async def theme_update(
     """ 테마 적용 """
     from main import app  # 순환참조 방지
 
-    before_theme = get_current_theme()
+    before_theme = await get_current_theme()
     before_theme_path = f"{TEMPLATES}/{before_theme}"
 
     db.execute(update(Config).values(cf_theme=select_theme))
     db.commit()
 
     # 선택한 테마로 캐시&설정 데이터들을 갱신합니다.
-    get_current_theme.cache_clear()
-    TemplateService.set_templates_dir()
+    # 25.04.23 비동기처리로 인한 일시적 캐시사용 중지
+    # get_current_theme.cache_clear()
+    await TemplateService.set_templates_dir()
     cache_directory = "data/cache"
     for filename in os.listdir(cache_directory):
         if filename.startswith("latest-"):
@@ -110,7 +111,7 @@ async def theme_update(
             os.unlink(file_path)
 
     # 테마 관련 정적 파일을 등록합니다.
-    register_theme_statics(app)
+    await register_theme_statics(app)
 
     # 이전 테마 경로를 제거 후 새로운 테마 경로를 추가합니다.
     user_template = UserTemplates()

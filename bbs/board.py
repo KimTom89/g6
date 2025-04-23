@@ -56,7 +56,7 @@ async def group_board_list(
     # 게시판 그룹 정보 조회
     group = service.group
     service.check_mobile_only()
-    boards = service.get_boards_in_group()
+    boards = await service.get_boards_in_group()
 
     context = {
         "request": request,

@@ -23,4 +23,4 @@ async def read_newwins(
     - 표시 기간 내에 있는 팝업만 조회합니다.
     - LFU(Least Frequently Used)캐시를 사용하여 조회합니다.
     """
-    return service.fetch_newwins(query.device.value)
+    return await service.fetch_newwins(query.device.value)

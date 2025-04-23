@@ -37,7 +37,7 @@ async def boardgroupmember_list(
     records_per_page = getattr(config, "cf_page_rows", 10)
 
     # 그룹 정보
-    group = db.get(Group, gr_id)
+    group = await db.get(Group, gr_id)
     if not group:
         raise AlertException(f"{gr_id} 그룹이 존재하지 않습니다.", 404)
 
@@ -58,11 +58,12 @@ async def boardgroupmember_list(
     # 페이지 번호에 따른 offset 계산
     offset = (current_page - 1) * records_per_page
     # 전체 레코드 개수 계산
-    total_count = db.scalar(query.add_columns(func.count(GroupMember.gm_id)).order_by(None))
+    total_count = await db.scalar(query.add_columns(func.count(GroupMember.gm_id)).order_by(None))
     # 최종 쿼리 결과를 가져옵니다.
-    group_members = db.scalars(
+    group_members_query = await db.scalars(
         query.add_columns(GroupMember).offset(offset).limit(records_per_page)
-    ).all()
+    )
+    group_members = group_members_query.all()
 
     for group_member in group_members:
         group_member.member_info = group_member.member
@@ -88,7 +89,7 @@ async def board_form(
     """
     회원별 접근가능한 게시판 그룹 목록
     """
-    exists_member = db.scalar(select(Member).filter_by(mb_id=mb_id))
+    exists_member = await db.scalar(select(Member).filter_by(mb_id=mb_id))
     if not exists_member:
         raise AlertException(f"{mb_id} 회원이 존재하지 않습니다.", 404)
 
@@ -99,8 +100,11 @@ async def board_form(
         query_groups = query_groups.filter_by(gr_admin=mb_id)
         query_allow_groups = query_allow_groups.where(Group.gr_admin == mb_id)
 
-    groups = db.scalars(query_groups).all()
-    allow_groups = db.execute(query_allow_groups).all()
+    groups_query = await db.scalars(query_groups)
+    groups = groups_query.all()
+    
+    allow_groups_query = await db.execute(query_allow_groups)
+    allow_groups = allow_groups_query.all()
 
     context = {
         "request": request,
@@ -121,15 +125,15 @@ async def boardgroupmember_insert(
     """
     접근가능한 그룹회원 추가
     """
-    exists_member = db.scalar(select(Member).filter_by(mb_id=mb_id))
+    exists_member = await db.scalar(select(Member).filter_by(mb_id=mb_id))
     if not exists_member:
         raise AlertException(f"{mb_id} 회원이 존재하지 않습니다.", 404)
 
-    exists_group = db.get(Group, gr_id)
+    exists_group = await db.get(Group, gr_id)
     if not exists_group:
         raise AlertException(f"{gr_id} 그룹이 존재하지 않습니다.", 404)
 
-    exists_group_member = db.scalar(select(GroupMember).filter_by(mb_id = mb_id, gr_id = gr_id))
+    exists_group_member = await db.scalar(select(GroupMember).filter_by(mb_id = mb_id, gr_id = gr_id))
     if exists_group_member:
         raise AlertException(f"{mb_id} 회원은 이미 {gr_id} 그룹에 등록되어 있습니다.", 409)
 
@@ -139,7 +143,7 @@ async def boardgroupmember_insert(
         gm_datetime=datetime.now(),
     )
     db.add(group_member)
-    db.commit()
+    await db.commit()
 
     return RedirectResponse(f"/admin/boardgroupmember_form/{mb_id}", status_code=303)
 
@@ -155,8 +159,8 @@ async def boardgroupmember_delete(
     """
     접근가능한 그룹회원 삭제
     """
-    db.execute(delete(GroupMember).where(GroupMember.gm_id.in_(checks)))
-    db.commit()
+    await db.execute(delete(GroupMember).where(GroupMember.gm_id.in_(checks)))
+    await db.commit()
 
     if mb_id:
         url = f"/admin/boardgroupmember_form/{mb_id}"

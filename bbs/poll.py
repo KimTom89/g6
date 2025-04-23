@@ -42,7 +42,7 @@ async def poll_update(
     # 포인트 지급
     if member:
         content = f'{poll.po_id}. {poll.po_subject[:20]} 설문조사 참여'
-        point_service.save_point(member.mb_id, poll.po_point, content,
+        await point_service.save_point(member.mb_id, poll.po_point, content,
                                  '@poll', poll.po_id, '투표')
 
     return RedirectResponse(url=f"/bbs/poll_result/{poll.po_id}", status_code=302)

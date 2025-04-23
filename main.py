@@ -1,12 +1,12 @@
 import os
 import re
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Path, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from sqlalchemy import delete, insert, select
+from sqlalchemy import select
 from sqlalchemy.exc import ProgrammingError
 from starlette.staticfiles import StaticFiles
 
@@ -21,13 +21,14 @@ from core.plugin import (
 )
 from core.routers import router as template_router
 from core.settings import ENV_PATH, settings
-from core.template import register_theme_statics
+from core.template import UserTemplates, register_theme_statics
 from lib.common import (
     get_client_ip, is_intercept_ip, is_possible_ip, session_member_key
 )
 from lib.dependency.dependencies import check_use_template
 from lib.member import is_super_admin
 from lib.scheduler import scheduler
+from lib.social.providers import load_social_config
 from lib.token import create_session_token
 from service.member_service import MemberService
 from service.point_service import PointService
@@ -51,6 +52,15 @@ async def lifespan(app: FastAPI):
     - yield 이전의 코드: 서버가 시작될 때 실행
     - yield 이후의 코드: 서버가 종료될 때 실행
     """
+    # 서버 시작 시 소셜 설정 로드
+    await load_social_config()
+
+    # 템플릿 초기화
+    app.state.templates = await UserTemplates.create()
+
+    # 테마 관련 정적 파일을 등록
+    await register_theme_statics(app)
+    
     yield
     scheduler.remove_flag()
 
@@ -66,7 +76,6 @@ if not os.path.exists("data"):
     os.mkdir("data")
 
 # 각 경로에 있는 파일들을 정적 파일로 등록합니다.
-register_theme_statics(app)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/data", StaticFiles(directory="data"), name="data")
 
@@ -86,7 +95,6 @@ app.include_router(template_router)
 app.include_router(install_router)
 app.include_router(login_router)
 
-
 @app.middleware("http")
 async def main_middleware(request: Request, call_next):
     """요청마다 항상 실행되는 미들웨어"""
@@ -95,7 +103,7 @@ async def main_middleware(request: Request, call_next):
         return await call_next(request)
 
     # 데이터베이스 설치여부 체크
-    with DBConnect().sessionLocal() as db:
+    async with DBConnect()._sessionLocal() as db: 
         url_path = request.url.path
         config = None
 
@@ -104,7 +112,7 @@ async def main_middleware(request: Request, call_next):
                 if not os.path.exists(ENV_PATH):
                     raise AlertException(".env 파일이 없습니다. 설치를 진행해 주세요.", 400, "/install")
                 # 기본환경설정 테이블 조회
-                config = db.scalar(select(models.Config))
+                config = await db.scalar(select(models.Config))
             else:
                 return await call_next(request)
 
@@ -142,7 +150,7 @@ async def main_middleware(request: Request, call_next):
             member_service = MemberService(request, db)
             # 로그인 세션 유지 중이라면
             if session_mb_id:
-                member = member_service.get_member(session_mb_id)
+                member = await member_service.get_member(session_mb_id)
                 # 회원 정보가 없거나 탈퇴한 회원이라면 세션을 초기화
                 if not member_service.is_activated(member)[0]:
                     request.session.clear()
@@ -151,7 +159,7 @@ async def main_middleware(request: Request, call_next):
             # 자동 로그인 쿠키가 있다면
             elif cookie_mb_id:
                 mb_id = re.sub("[^a-zA-Z0-9_]", "", cookie_mb_id)[:20]
-                member = member_service.get_member(session_mb_id)
+                member = await member_service.get_member(session_mb_id)
 
                 # 최고관리자는 보안상 자동로그인 기능을 사용하지 않는다.
                 if (not is_super_admin(request, mb_id)
@@ -175,13 +183,14 @@ async def main_middleware(request: Request, call_next):
             ymd_str = datetime.now().strftime("%Y-%m-%d")
             if member.mb_today_login.strftime("%Y-%m-%d") != ymd_str:
                 point_service = PointService(request, db, member_service)
-                point_service.save_point(
+                await point_service.save_point(
                     member.mb_id, config.cf_login_point, ymd_str + " 첫로그인",
                     "@login", member.mb_id, ymd_str)
 
                 member.mb_today_login = datetime.now()
                 member.mb_login_ip = request.client.host
-                db.commit()
+                await db.commit()
+                await db.refresh(member)
 
         # 로그인한 회원 정보
         request.state.login_member = member
@@ -198,7 +207,7 @@ async def main_middleware(request: Request, call_next):
     # 응답 객체 설정
     response: Response = await call_next(request)
 
-    with DBConnect().sessionLocal() as db:
+    async with DBConnect().sessionLocal() as db:
         age_1day = 60 * 60 * 24
 
         # 자동로그인 쿠키 재설정

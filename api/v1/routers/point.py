@@ -24,9 +24,9 @@ async def read_member_points(
     data: Annotated[PagenationRequest, Depends()]
 ) -> PointListResponse:
     """JWT 토큰을 통해 인증된 회원의 포인트 내역을 조회합니다."""
-    total_records = service.fetch_total_records(member)
+    total_records = await service.fetch_total_records(member)
     paging_info = get_paging_info(data.page, data.per_page, total_records)
-    points = service.fetch_points(member, data.offset, data.per_page)
+    points = await service.fetch_points(member, data.offset, data.per_page)
 
     return {
         "total_records": total_records,

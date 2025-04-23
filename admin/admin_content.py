@@ -28,7 +28,7 @@ async def content_list(request: Request, db: db_session):
     """
     request.session["menu_key"] = MENU_KEY
 
-    contents = db.scalars(select(Content)).all()
+    contents = (await db.scalars(select(Content))).all()
 
     context = {
         "request": request,
@@ -59,7 +59,7 @@ async def content_form_edit(
     """
     내용 수정 폼
     """
-    content = db.get(Content, co_id)
+    content = await db.get(Content, co_id)
     if not content:
         raise AlertException(f"{co_id} : 내용 아이디가 존재하지 않습니다.", 404)
 
@@ -112,24 +112,24 @@ async def content_form_update(
     """
     if action == "w":
         # ID 중복 검사
-        exists_content = db.scalar(select(Content).where(Content.co_id == co_id))
+        exists_content = await db.scalar(select(Content).where(Content.co_id == co_id))
         if exists_content:
             raise AlertException(status_code=400, detail=f"{co_id} : 내용 아이디가 이미 존재합니다.")
 
         # 내용 등록
         content = Content(co_id=co_id, **form_data.__dict__)
         db.add(content)
-        db.commit()
+        await db.commit()
 
     elif action == "u":
-        content = db.get(Content, co_id)
+        content = await db.get(Content, co_id)
         if not content:
             raise AlertException(status_code=404, detail=f"{co_id} : 내용 아이디가 존재하지 않습니다.")
 
         # 데이터 수정 후 commit
         for field, value in form_data.__dict__.items():
             setattr(content, field, value)
-        db.commit()
+        await db.commit()
 
     # 이미지 경로 생성
     os.makedirs(IMAGE_DIRECTORY, exist_ok=True)
@@ -153,7 +153,7 @@ async def content_delete(
     """
     내용 삭제
     """
-    content = db.get(Content, co_id)
+    content = await db.get(Content, co_id)
     if not content:
         raise AlertException(status_code=404, detail=f"{co_id}: 내용 아이디가 존재하지 않습니다.")
 
@@ -161,7 +161,7 @@ async def content_delete(
     delete_image(IMAGE_DIRECTORY, f"{co_id}_h")
     delete_image(IMAGE_DIRECTORY, f"{co_id}_t")
     # 내용 삭제
-    db.delete(content)
-    db.commit()
+    await db.delete(content)
+    await db.commit()
 
     return RedirectResponse(url=request.url_for('content_list'), status_code=302)

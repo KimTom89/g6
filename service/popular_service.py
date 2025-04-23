@@ -27,9 +27,9 @@ class PopularService(BaseService):
     def raise_exception(self, status_code: int, detail: str = None):
         pass
 
-    @cached(TTLCache(maxsize=128, ttl=60),
-            key=lambda self, limit=10, day=3: hashkey("populars", limit, day))
-    def fetch_populars(self, limit: int = 10, day: int = 3) -> List[Popular]:
+    # @cached(TTLCache(maxsize=128, ttl=60),
+    #         key=lambda self, limit=10, day=3: hashkey("populars", limit, day))
+    async def fetch_populars(self, limit: int = 10, day: int = 3) -> List[Popular]:
         """
         현재 날짜와 day일 전 날짜 사이의 인기검색어를 조회한다.
         - TTL(Time To Live)캐시를 사용하여 조회한다.
@@ -44,7 +44,7 @@ class PopularService(BaseService):
         """
         today = datetime.now()
         before_day = today - timedelta(days=day)
-        populars = self.db.execute(
+        query_result = await self.db.execute(
             select(Popular.pp_word, func.count(Popular.pp_word).label('count'))
             .where(
                 Popular.pp_word != '',
@@ -54,9 +54,9 @@ class PopularService(BaseService):
             .group_by(Popular.pp_word)
             .order_by(desc('count'), Popular.pp_word)
             .limit(limit)
-        ).all()
+        )
 
-        return populars
+        return query_result.all()
 
     def create_popular(self, request: Request, fields: str, word: str) -> None:
         """인기검색어를 생성합니다."""

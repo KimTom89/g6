@@ -26,9 +26,9 @@ async def point_list(
     """
     records_per_page = request.state.config.cf_page_rows
 
-    total_records = point_service.fetch_total_records(member)
+    total_records = await point_service.fetch_total_records(member)
     paging_info = get_paging_info(current_page, records_per_page, total_records)
-    points = point_service.fetch_points(member, paging_info["offset"], records_per_page)
+    points = await point_service.fetch_points(member, paging_info["offset"], records_per_page)
 
     for point in points:
         point.num = total_records - paging_info["offset"] - (points.index(point))

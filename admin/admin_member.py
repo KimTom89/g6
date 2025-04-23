@@ -47,7 +47,7 @@ async def member_list(
     """
     request.session["menu_key"] = MEMBER_MENU_KEY
 
-    result = select_query(
+    result = await select_query(
         request,
         db,
         Member,
@@ -67,7 +67,7 @@ async def member_list(
 
     # 회원정보 추가 설정
     for member in result["rows"]:
-        member.group_count = len(member.groups)
+        member.group_count = await db.scalar(select(func.count(GroupMember.mb_id)).where(GroupMember.mb_id == member.mb_id))
         if not is_none_datetime(member.mb_datetime):
             member.mb_datetime = member.mb_datetime.strftime("%y-%m-%d")
         else:
@@ -78,8 +78,8 @@ async def member_list(
             member.mb_today_login = "없음"
 
     # 탈퇴/차단 회원수
-    leave_count = db.scalar(select(func.count(Member.mb_id)).where(Member.mb_leave_date != ""))
-    intercept_count = db.scalar(select(func.count(Member.mb_id)).where(Member.mb_intercept_date != ""))
+    leave_count = await db.scalar(select(func.count(Member.mb_id)).where(Member.mb_leave_date != ""))
+    intercept_count = await db.scalar(select(func.count(Member.mb_id)).where(Member.mb_intercept_date != ""))
 
     context = {
         "request": request,
@@ -109,7 +109,7 @@ async def member_list_update(
 ):
     """회원관리 목록 일괄 수정"""
     for i in checks:
-        member = db.scalar(select(Member).filter_by(mb_id=mb_id[i]))
+        member = await db.scalar(select(Member).filter_by(mb_id=mb_id[i]))
         if member:
             if (request.state.config.cf_admin == mb_id[i]) or (request.state.login_member.mb_id == mb_id[i]):
                 if get_from_list(mb_intercept_date, i, 0):
@@ -121,7 +121,7 @@ async def member_list_update(
             member.mb_sms = get_from_list(mb_sms, i, 0)
             member.mb_intercept_date = (datetime.now().strftime("%Y%m%d") if get_from_list(mb_intercept_date, i, 0) else "")
             member.mb_level = mb_level[i]
-            db.commit()
+            await db.commit()
 
     query_params = request.query_params
     url = "/admin/member_list"
@@ -143,7 +143,7 @@ async def member_list_delete(
             print("관리자와 로그인된 본인은 삭제 불가")
             continue
 
-        member = db.scalar(select(Member).filter_by(mb_id=mb_id[i]))
+        member = await db.scalar(select(Member).filter_by(mb_id=mb_id[i]))
         if member:
             # 이미 삭제된 회원은 제외
             # if re.match(r"^[0-9]{8}.*삭제함", member.mb_memo):
@@ -169,38 +169,39 @@ async def member_list_delete(
             member.mb_certify = ""
             member.mb_adult = 0
             member.mb_dupinfo = ""
+            member.mb_leave_date = delete_time
 
             # 나머지 테이블에서도 삭제
             # 포인트 테이블에서 삭제
-            db.execute(delete(Point).where(Point.mb_id == member.mb_id))
+            await db.execute(delete(Point).where(Point.mb_id == member.mb_id))
 
             # 그룹접근가능 테이블에서 삭제
-            db.execute(delete(GroupMember).where(GroupMember.mb_id == member.mb_id))
+            await db.execute(delete(GroupMember).where(GroupMember.mb_id == member.mb_id))
 
             # 쪽지 테이블에서 삭제
-            db.execute(delete(Memo).where(Memo.me_send_mb_id == member.mb_id))
+            await db.execute(delete(Memo).where(Memo.me_send_mb_id == member.mb_id))
 
             # 스크랩 테이블에서 삭제
-            db.execute(delete(Scrap).where(Scrap.mb_id == member.mb_id))
+            await db.execute(delete(Scrap).where(Scrap.mb_id == member.mb_id))
 
             # 관리권한 테이블에서 삭제
-            db.execute(delete(Auth).where(Auth.mb_id == member.mb_id))
+            await db.execute(delete(Auth).where(Auth.mb_id == member.mb_id))
 
             # 그룹관리자인 경우 그룹관리자를 공백으로
-            db.execute(update(Group).where(Group.gr_admin == member.mb_id).values(gr_admin=""))
+            await db.execute(update(Group).where(Group.gr_admin == member.mb_id).values(gr_admin=""))
 
             # # 게시판관리자인 경우 게시판관리자를 공백으로
-            db.execute(update(Board).where(Board.bo_admin == member.mb_id).values(bo_admin=""))
+            await db.execute(update(Board).where(Board.bo_admin == member.mb_id).values(bo_admin=""))
 
             # 소셜로그인에서 삭제 또는 해제
-            if SocialAuthService.check_exists_by_member_id(member.mb_id):
-                SocialAuthService.unlink_social_login(member.mb_id)
+            if await SocialAuthService.check_exists_by_member_id(member.mb_id):
+                await SocialAuthService.unlink_social_login(member.mb_id)
 
             # 아이콘/이미지 삭제
             file_service.update_image_file(member.mb_id, 'icon', None, 1)
             file_service.update_image_file(member.mb_id, 'image', None, 1)
 
-            db.commit()
+            await db.commit()
 
     url = "/admin/member_list"
     query_params = request.query_params
@@ -219,7 +220,7 @@ async def member_form(
 
     exists_member = None
     if mb_id:
-        exists_member = db.scalar(select(Member).filter_by(mb_id=mb_id))
+        exists_member = await db.scalar(select(Member).filter_by(mb_id=mb_id))
         if not exists_member:
             raise AlertException("회원아이디가 존재하지 않습니다.")
 
@@ -246,7 +247,7 @@ async def member_form_update(
     del_mb_img: int = Form(None),
 ):
     """회원 추가, 수정 처리"""
-    exists_member = db.scalar(select(Member).filter_by(mb_id=mb_id))
+    exists_member = await db.scalar(select(Member).filter_by(mb_id=mb_id))
     if not exists_member:  # 등록 (회원아이디가 존재하지 않으면)
 
         new_member = Member(mb_id=mb_id, **form_data.__dict__)
@@ -257,7 +258,7 @@ async def member_form_update(
             new_member.mb_password = create_hash(create_hash(time_ymdhis))
 
         db.add(new_member)
-        db.commit()
+        await db.commit()
 
     else:  # 수정 (회원아이디가 존재하면)
 
@@ -270,7 +271,7 @@ async def member_form_update(
         for field, value in form_data.__dict__.items():
             setattr(exists_member, field, value)
 
-        db.commit()
+        await db.commit()
 
     # 이미지 검사 -> 이미지 수정(삭제 포함)
     file_service.update_image_file(mb_id, 'image', mb_img, del_mb_img)
@@ -289,7 +290,7 @@ async def check_member_id(
     """
     회원아이디 중복체크
     """
-    exists_member = db.scalar(select(Member).filter_by(mb_id=mb_id))
+    exists_member = await db.scalar(select(Member).filter_by(mb_id=mb_id))
     if exists_member:
         return {"result": "exists"}
     else:
@@ -305,7 +306,7 @@ async def check_member_email(
     """
     회원이메일 중복체크
     """
-    exists_member = db.scalar(
+    exists_member = await db.scalar(
         select(Member)
         .where(Member.mb_email == mb_email)
         .where(Member.mb_id != mb_id)
@@ -325,7 +326,7 @@ async def check_member_nick(
     """
     회원닉네임 중복체크
     """
-    exists_member = db.scalar(
+    exists_member = await db.scalar(
         select(Member)
         .where(Member.mb_nick == mb_nick)
         .where(Member.mb_id != mb_id)

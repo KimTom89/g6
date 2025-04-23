@@ -24,27 +24,28 @@ class MenuService(BaseService):
     def raise_exception(self, status_code: int = 400, detail: str = None, url: str = None) -> None:
         raise AlertException(detail, status_code, url)
 
-    @cached(LRUCache(maxsize=128), key=lambda _: hashkey("menus"))
-    def fetch_menus(self) -> List[Menu]:
+    # @cached(LRUCache(maxsize=128), key=lambda _: hashkey("menus"))
+    async def fetch_menus(self) -> List[Menu]:
         """사용자페이지 메뉴 조회 함수"""
         menus = []
         # 부모메뉴 조회
-        parent_menus = self.db.scalars(
+        query_result = await self.db.scalars(
             select(Menu)
             .where(func.char_length(Menu.me_code) == 2)
             .order_by(Menu.me_order)
-        ).all()
+        )
+        parent_menus = query_result.all()
 
         for menu in parent_menus:
             parent_code = menu.me_code
             # 자식 메뉴 조회
-            child_menus = self.db.scalars(
+            query_result = await self.db.scalars(
                 select(Menu).where(
                     func.char_length(Menu.me_code) == 4,
                     func.substr(Menu.me_code, 1, 2) == parent_code
                 ).order_by(Menu.me_order)
-            ).all()
+            )
 
-            menu.sub = child_menus
+            menu.sub = query_result.all()
             menus.append(menu)
         return menus

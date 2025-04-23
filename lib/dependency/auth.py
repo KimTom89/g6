@@ -7,13 +7,13 @@ from core.models import Member
 from service.member_service import MemberService
 
 
-def get_login_member(
+async def get_login_member(
     request: Request,
     service: Annotated[MemberService, Depends()]
 ) -> Member:
     """현재 로그인 여부 검사 진행 후 로그인 멤버를 반환한다."""
     mb_id = request.session.get("ss_mb_id", "")
-    member: Member = service.fetch_member_by_id(mb_id)
+    member: Member = await service.fetch_member_by_id(mb_id)
     if not member or not mb_id:
         path = request.url.path
         url = request.url_for("login_form").replace_query_params(url=path)
@@ -22,11 +22,11 @@ def get_login_member(
     return member
 
 
-def get_login_member_optional(
+async def get_login_member_optional(
     request: Request,
     service: Annotated[MemberService, Depends()]
 ) -> Union[Member, None]:
     """현재 로그인 멤버를 반환한다. 로그인이 되어 있지 않으면 None을 반환한다."""
     mb_id = request.session.get("ss_mb_id", "")
-    member: Member = service.fetch_member_by_id(mb_id)
+    member: Member = await service.fetch_member_by_id(mb_id)
     return member

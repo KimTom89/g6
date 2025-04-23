@@ -18,13 +18,13 @@ class BoardFileService():
         self.config = request.state.config
         self.db = db
 
-    def is_exist(self, bo_table: str, wr_id: int):
+    async def is_exist(self, bo_table: str, wr_id: int) -> bool:
         """게시글에 파일이 있는지 확인
 
         Returns:
             bool: 파일이 존재하면 True, 없으면 False
         """
-        return self.db.scalar(
+        return await self.db.scalar(
             exists(BoardFile)
             .where(BoardFile.bo_table == bo_table, BoardFile.wr_id == wr_id)
             .select()
@@ -66,14 +66,14 @@ class BoardFileService():
 
         return file.size <= board.bo_upload_size
 
-    def get_board_files(self, bo_table: str, wr_id: int) -> List[BoardFile]:
+    async def get_board_files(self, bo_table: str, wr_id: int) -> List[BoardFile]:
         """업로드된 파일 목록을 가져온다."""
-        return self.db.scalars(
+        return (await self.db.scalars(
             select(BoardFile).where(
                 BoardFile.bo_table == bo_table,
                 BoardFile.wr_id == wr_id
             )
-        ).all()
+        )).all()
 
     def get_board_files_by_form(self, board: Board, wr_id: int = None) -> List[BoardFile]:
         """입력/수정 폼에서 사용할 파일 목록을 가져온다.
@@ -141,7 +141,7 @@ class BoardFileService():
         """
         return os.urandom(16).hex() + "." + filename.split(".")[-1]
 
-    def insert_board_file(self, bo_table: str, wr_id: int, bf_no: int, directory: str, filename: str, file: UploadFile, content: str = ""):
+    async def insert_board_file(self, bo_table: str, wr_id: int, bf_no: int, directory: str, filename: str, file: UploadFile, content: str = ""):
         """게시글의 파일을 추가한다.
 
         Args:
@@ -152,7 +152,7 @@ class BoardFileService():
             bo_table (str, optional): 게시판 테이블명. Defaults to None.
             wr_id (int, optional): 게시글 아이디. Defaults to None.
         """
-        self.db.execute(
+        await self.db.execute(
             insert(BoardFile)
             .values(
                 bo_table=bo_table,
@@ -165,11 +165,11 @@ class BoardFileService():
                 bf_filesize=file.size
             )
         )
-        self.db.commit()
+        await self.db.commit()
 
-    def update_board_file(self, board_file: BoardFile,
-                          directory: str, filename: str, file: UploadFile,
-                          content: str = "", bo_table: str = None, wr_id: int = None):
+    async def update_board_file(self, board_file: BoardFile,
+                                directory: str, filename: str, file: UploadFile,
+                                content: str = "", bo_table: str = None, wr_id: int = None):
         """게시글의 파일을 수정한다.
 
         Args:
@@ -187,20 +187,20 @@ class BoardFileService():
         board_file.bf_download = 0
         board_file.bf_content = content
         board_file.bf_filesize = file.size
-        self.db.commit()
+        await self.db.commit()
 
-    def update_download_count(self, board_file: BoardFile):
+    async def update_download_count(self, board_file: BoardFile):
         """다운로드 횟수를 증가시킨다.
 
         Args:
             board_file (BoardFile): 게시판 파일 인스턴스
         """
         board_file.bf_download += 1
-        self.db.commit()
+        await self.db.commit()
 
-    def move_board_files(self, directory: str,
-                         origin_bo_table: str, origin_wr_id: int,
-                         target_bo_table: str, target_wr_id: int):
+    async def move_board_files(self, directory: str,
+                               origin_bo_table: str, origin_wr_id: int,
+                               target_bo_table: str, target_wr_id: int):
         """게시글의 파일을 이동한다.
 
         Args:
@@ -210,7 +210,7 @@ class BoardFileService():
         board_directory = os.path.join(directory, target_bo_table)
         os.makedirs(board_directory, exist_ok=True)
 
-        board_files = self.get_board_files(origin_bo_table, origin_wr_id)
+        board_files = await self.get_board_files(origin_bo_table, origin_wr_id)
         for board_file in board_files:
             file = self.create_upload_file_from_path(board_file.bf_file)
             file.filename = board_file.bf_source
@@ -219,21 +219,21 @@ class BoardFileService():
 
             # 파일 이동 및 정보 업데이트
             self.move_file(board_file.bf_file, f"{directory}/{filename}")
-            self.update_board_file(board_file, directory, filename, file,
+            await self.update_board_file(board_file, directory, filename, file,
                                    board_file.bf_content, target_bo_table, target_wr_id)
             board_file.bo_table = target_bo_table
             board_file.wr_id = target_wr_id
 
-        self.db.commit()
+        await self.db.commit()
 
-    def copy_board_files(self, directory: str,
-                         origin_bo_table: str, origin_wr_id: int,
-                         target_bo_table: str, target_wr_id: int) -> None:
+    async def copy_board_files(self, directory: str,
+                               origin_bo_table: str, origin_wr_id: int,
+                               target_bo_table: str, target_wr_id: int) -> None:
         """게시글의 파일을 복사한다."""
         board_directory = os.path.join(directory, target_bo_table)
         os.makedirs(board_directory, exist_ok=True)
 
-        board_files = self.get_board_files(origin_bo_table, origin_wr_id)
+        board_files = await self.get_board_files(origin_bo_table, origin_wr_id)
         for board_file in board_files:
             file = self.create_upload_file_from_path(board_file.bf_file)
             if not file:
@@ -244,7 +244,7 @@ class BoardFileService():
 
             # 파일 복사 및 정보 추가
             self.copy_file(board_file.bf_file, f"{board_directory}/{filename}")
-            self.insert_board_file(target_bo_table, target_wr_id, board_file.bf_no,
+            await self.insert_board_file(target_bo_table, target_wr_id, board_file.bf_no,
                                    board_directory, filename, file, board_file.bf_content)
 
     def delete_board_file(self, bo_table: str, wr_id: int, bf_no: int):

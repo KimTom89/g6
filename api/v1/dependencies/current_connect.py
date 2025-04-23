@@ -30,16 +30,16 @@ async def set_current_connect(
         if cf_admin != mb_id:
             current_login = service.fetch_current_connect(current_ip)
             if current_login:
-                service.update_current_connect(current_login, path, mb_id)
+                await service.update_current_connect(current_login, path, mb_id)
             else:
-                service.create_current_connect(current_ip, path, mb_id)
+                await service.create_current_connect(current_ip, path, mb_id)
 
         # 현재 로그인한 이력 삭제
-        service.delete_current_connect()
+        await service.delete_current_connect()
 
         # 세션의 member 데이터를 데이터베이스와 동기화
         if member:
-            db.refresh(member)
+            await db.refresh(member)
 
     except ProgrammingError as e:
         print(e)

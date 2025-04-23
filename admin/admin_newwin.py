@@ -23,11 +23,11 @@ templates.env.globals["after_7days"] = (
 NEWWIN_MENU_KEY = "100310"
 
 
-def get_newwin(db: db_session, nw_id: int):
+async def get_newwin(db: db_session, nw_id: int) -> NewWin:
     """
     팝업 정보조회 의존성 주입 함수
     """
-    newwin = db.get(NewWin, nw_id)
+    newwin = await db.get(NewWin, nw_id)
     if not newwin:
         raise AlertException(f"{nw_id} : 팝업이 존재하지 않습니다.", 404)
 
@@ -41,9 +41,10 @@ async def newwin_list(request: Request, db: db_session):
     """
     request.session["menu_key"] = NEWWIN_MENU_KEY
 
-    newwins = db.scalars(
+    newwins = await db.scalars(
         select(NewWin).order_by(NewWin.nw_id.desc())
-    ).all()
+    )
+    newwins = newwins.all()
 
     context = {
         "request": request,
@@ -87,16 +88,19 @@ async def newwin_form_update(
     if not nw_id:
         newwin = NewWin(**form_data.__dict__)
         db.add(newwin)
-        db.commit()
+        await db.commit()
     # 수정
     else:
-        newwin = get_newwin(db, nw_id)
+        newwin = await get_newwin(db, nw_id)
         for field, value in form_data.__dict__.items():
             setattr(newwin, field, value)
-        db.commit()
+        await db.commit()
+
+    await db.refresh(newwin)
 
     # 기존 캐시 삭제
-    service.fetch_newwins.cache_clear()
+    # 25.04.23 비동기처리로 인한 일시적 캐시사용 중지
+    # service.fetch_newwins.cache_clear()
 
     return RedirectResponse(url=f"/admin/newwin_form/{newwin.nw_id}", status_code=302)
 
@@ -111,10 +115,11 @@ async def newwin_delete(
     팝업 삭제
     """
     # 팝업 삭제
-    db.delete(newwin)
-    db.commit()
+    await db.delete(newwin)
+    await db.commit()
 
     # 기존 캐시 삭제
-    service.fetch_newwins.cache_clear()
+    # 25.04.23 비동기처리로 인한 일시적 캐시사용 중지
+    # service.fetch_newwins.cache_clear()
 
     return RedirectResponse(url="/admin/newwin_list", status_code=302)

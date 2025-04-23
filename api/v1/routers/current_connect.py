@@ -29,7 +29,7 @@ async def read_member_points(
 ) -> CurrentConnectListResponse:
     """현재 사이트에 접속 중인 회원들의 목록을 조회합니다."""
     only_member = data.only_member == "Y"
-    total_records = service.fetch_total_records(only_member)
+    total_records = await service.fetch_total_records(only_member)
     paging_info = get_paging_info(data.page, data.per_page, total_records)
     connects = service.fetch_corrent_connects(only_member,
                                                   data.offset, data.per_page)

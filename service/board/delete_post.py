@@ -86,7 +86,7 @@ class DeletePostService(BoardService):
          if not self.is_delete_by_comment(self.wr_id):
             self.raise_exception(detail=f"이 글과 관련된 댓글이 {self.board.bo_count_delete}건 이상 존재하므로 삭제 할 수 없습니다.", status_code=403)
 
-    def delete_write(self):
+    async def delete_write(self):
         """게시글 삭제 처리"""
         write_model = self.write_model
         db = self.db
@@ -106,7 +106,7 @@ class DeletePostService(BoardService):
             if not write.wr_is_comment:
                 # 원글 포인트 삭제
                 if not self.point_service.delete_point(write.mb_id, bo_table, self.wr_id, "쓰기"):
-                    self.point_service.save_point(write.mb_id, board.bo_write_point * (-1),
+                    await self.point_service.save_point(write.mb_id, board.bo_write_point * (-1),
                                                     f"{board.bo_subject} {self.wr_id} 글 삭제")
                 # 파일+섬네일 삭제
                 self.file_service.delete_board_files(board.bo_table, self.wr_id)
@@ -116,7 +116,7 @@ class DeletePostService(BoardService):
             else:
                 # 댓글 포인트 삭제
                 if not self.point_service.delete_point(write.mb_id, bo_table, self.wr_id, "댓글"):
-                    self.point_service.save_point(self.request, write.mb_id, board.bo_comment_point * (-1),
+                    await self.point_service.save_point(self.request, write.mb_id, board.bo_comment_point * (-1),
                                                   f"{board.bo_subject} {self.wr_id} 댓글 삭제")
 
                 delete_comment_count += 1
@@ -263,7 +263,7 @@ class ListDeleteService(BoardService):
         instance = cls(request, db, file_service, point_service, bo_table)
         return instance
 
-    def delete_writes(self, wr_ids: list):
+    async def delete_writes(self, wr_ids: list):
         """게시글 목록 삭제"""
         write_model = self.write_model
         writes: List[WriteBaseModel] = self.db.scalars(
@@ -274,7 +274,7 @@ class ListDeleteService(BoardService):
             self.db.delete(write)
             # 원글 포인트 삭제
             if not self.point_service.delete_point(write.mb_id, self.bo_table, write.wr_id, "쓰기"):
-                self.point_service.save_point(write.mb_id, self.board.bo_write_point * (-1),
+                await self.point_service.save_point(write.mb_id, self.board.bo_write_point * (-1),
                                               f"{self.board.bo_subject} {write.wr_id} 글 삭제")
 
             # 파일 삭제

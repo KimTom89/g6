@@ -36,8 +36,6 @@ log = logging.getLogger("authlib")
 logging.basicConfig()
 log.setLevel(logging.DEBUG)
 
-SessionLocal = DBConnect().sessionLocal
-
 
 @router.get('/social/login')
 async def social_login(request: Request):
@@ -292,7 +290,7 @@ async def post_social_register(
 
     # 회원가입 포인트 부여
     register_point = getattr(config, "cf_register_point", 0)
-    point_service.save_point(member.mb_id, register_point, "회원가입 축하",
+    await point_service.save_point(member.mb_id, register_point, "회원가입 축하",
                              "@member", member.mb_id, "회원가입")
 
     from_email = get_admin_email(request)
@@ -328,7 +326,7 @@ async def post_social_register(
 class SocialAuthService:
 
     @classmethod
-    def get_profile_by_identifier(cls, identifier, provider) -> Optional[str]:
+    async def get_profile_by_identifier(cls, identifier, provider) -> Optional[str]:
         """ 소셜 서비스 identifier 로 회원 아이디를 가져옴
 
         Args:
@@ -338,8 +336,8 @@ class SocialAuthService:
         Returns:
             g5 user_id
         """
-        with SessionLocal() as db:
-            result = db.scalar(
+        async with DBConnect().sessionLocal() as db:
+            result = await db.scalar(
                 select(MemberSocialProfiles)
                 .where(
                     MemberSocialProfiles.provider == provider,
@@ -352,7 +350,7 @@ class SocialAuthService:
         return None
 
     @classmethod
-    def check_exists_by_social_id(cls, identifier, provider) -> bool:
+    async def check_exists_by_social_id(cls, identifier, provider) -> bool:
         """소셜 서비스 아이디가 존재하는지 확인
         Args:
             identifier (str) : 소셜서비스 사용자 식별 id
@@ -360,8 +358,8 @@ class SocialAuthService:
         Returns:
             True or False
         """
-        with SessionLocal() as db:
-            result = db.scalar(
+        async with DBConnect().sessionLocal() as db:
+            result = await db.scalar(
                 exists(MemberSocialProfiles.mp_no)
                 .where(
                     MemberSocialProfiles.provider == provider,
@@ -374,15 +372,15 @@ class SocialAuthService:
         return False
 
     @classmethod
-    def check_exists_by_member_id(cls, member_id) -> bool:
+    async def check_exists_by_member_id(cls, member_id) -> bool:
         """회원아이디가 존재하는지 확인
         Args:
             member_id (str) : 회원 아이디
         Returns:
             True or False
         """
-        with SessionLocal() as db:
-            result = db.scalar(
+        async with DBConnect().sessionLocal() as db:
+            result = await db.scalar(
                 exists(MemberSocialProfiles.mb_id)
                 .where(MemberSocialProfiles.mb_id == member_id)
                 .select()
@@ -412,12 +410,12 @@ class SocialAuthService:
         return f"{provider}_{hex(adler32_hash)[2:]}"
 
     @classmethod
-    def unlink_social_login(cls, member_id):
+    async def unlink_social_login(cls, member_id):
         """소셜계정 연결해제
         """
-        with SessionLocal() as db:
-            db.execute(
+        async with DBConnect().sessionLocal() as db:
+            await db.execute(
                 delete(MemberSocialProfiles)
                 .where(MemberSocialProfiles.mb_id == member_id)
             )
-            db.commit()
+            await db.commit()

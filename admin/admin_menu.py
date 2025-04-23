@@ -28,7 +28,7 @@ async def menu_list(request: Request, db: db_session):
     """
     request.session["menu_key"] = MENU_KEY
 
-    menus = db.scalars(select(Menu).order_by(Menu.me_code)).all()
+    menus = (await db.scalars(select(Menu).order_by(Menu.me_code))).all()
 
     # me_code의 길이가 4이상 데이터는 subclass 속성을 추가.
     for menu in menus:
@@ -75,20 +75,23 @@ async def menu_form_search(
     # type별 model 선언
     datas = []
     if search_type == "group":
-        datas = db.execute(
+        result = await db.execute(
             select(Group.gr_id.label('id'), Group.gr_subject.label('subject'))
             .order_by(Group.gr_order, Group.gr_id)
-        ).all()
+        )
+        datas = result.all()
     elif search_type == "board":
-        datas = db.execute(
+        result = await db.execute(
             select(Board.bo_table.label('id'), Board.bo_subject.label('subject'), Board.gr_id)
             .order_by(Board.bo_order, Board.bo_table)
-        ).all()
+        )
+        datas = result.all()
     elif search_type == "content":
-        datas = db.execute(
+        result = await db.execute(
             select(Content.co_id.label('id'), Content.co_subject.label('subject'))
             .order_by(Content.co_id)
-        ).all()
+        )
+        datas = result.all()
     else:
         search_type = "input"
 
@@ -117,7 +120,7 @@ async def menu_list_update(
     """
     try:
         # 메뉴 전체 삭제
-        db.execute(delete(Menu))
+        await db.execute(delete(Menu))
 
         # 새로운 메뉴 등록
         if parent_code:
@@ -129,7 +132,7 @@ async def menu_list_update(
                 insert_me_link = bleach.clean(me_link[i])
 
                 if group_code == parent_code[i]:
-                    max_sub_code = db.scalar(
+                    max_sub_code = await db.scalar(
                         select(func.max(func.substr(Menu.me_code, 3, 2)))
                         .where(func.substr(Menu.me_code, 1, 2) == group_code)
                     )
@@ -137,7 +140,7 @@ async def menu_list_update(
                     max_sub_code_10 += 36
                     insert_me_code = group_code + base10_to_base36(max_sub_code_10)
                 else:
-                    max_code = db.scalar(
+                    max_code = await db.scalar(
                         select(func.max(func.substr(Menu.me_code, 1, 2)))
                         .where(func.length(Menu.me_code) == 2)
                     )
@@ -156,15 +159,16 @@ async def menu_list_update(
                     me_mobile_use=me_mobile_use[i],
                 )
                 db.add(menu)
-                db.commit()
+                await db.commit()
         else:
-            db.commit()
+            await db.commit()
 
         # 기존캐시 삭제
-        menu_service.fetch_menus.cache_clear()
+        # 25.04.23 비동기처리로 인한 일시적 캐시사용 중지
+        # menu_service.fetch_menus.cache_clear()
 
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise AlertException(f"Error: {e}", 400) from e
 
     return RedirectResponse("/admin/menu_list", status_code=303)

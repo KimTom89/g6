@@ -121,7 +121,7 @@ def regist_core_exception_handler(app: FastAPI) -> None:
         )
 
 
-def template_response(
+async def template_response(
         template_html: str,
         context: Dict[str, Any],
         status_code: int = 200) -> _TemplateResponse:
@@ -140,7 +140,7 @@ def template_response(
     # 새로운 템플릿 응답 객체를 생성합니다.
     # - UserTemplates, AdminTemplates 클래스는 기본 컨텍스트 설정 시 DB를 조회하는데,
     #   처음 설치 시에는 DB가 없으므로 새로운 템플릿 응답 객체를 생성합니다.
-    template = Jinja2Templates(directory=TemplateService.get_templates_dir())
+    template = Jinja2Templates(directory=await TemplateService.get_templates_dir())
     template.env.globals["theme_asset"] = theme_asset
     return template.TemplateResponse(
         name=template_html,

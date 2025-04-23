@@ -41,7 +41,7 @@ async def create_visit_record(
     - 방문자 수 합계 테이블 갱신
     - 기본설정 테이블에 방문자 수 갱신
     """
-    visit = service.create_visit_record()
+    visit = await service.create_visit_record()
     if not visit:
         return {"message": "이미 방문한 사용자입니다."}
 

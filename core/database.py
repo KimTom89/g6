@@ -1,22 +1,20 @@
 from typing import AsyncGenerator
 
 from fastapi import Depends
-from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine, URL
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.engine import URL
 from sqlalchemy.ext.declarative import declared_attr
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import QueuePool
 from typing_extensions import Annotated
 
 from core.settings import settings
 
 
 class MySQLCharsetMixin:
-    """ MySQL의 기본 charset을 설정하는 Mixin 클래스 """
+    """MySQL의 기본 charset을 설정하는 Mixin 클래스"""
 
     @declared_attr.directive
     def __table_args__(cls):
-        return {'mysql_charset': DBConnect().charset}
+        return {"mysql_charset": DBConnect().charset}
 
 
 class DBSetting:
@@ -33,13 +31,13 @@ class DBSetting:
     _name: Annotated[str, ""]
     _url: Annotated[str, ""]
     _charset: Annotated[str, ""]
-    _instance: Annotated['DBSetting', None] = None
+    _instance: Annotated["DBSetting", None] = None
     _setting_init: Annotated[bool, False]
 
     supported_engines = {
-        "mysql": "mysql+pymysql",
-        "postgresql": "postgresql",
-        "sqlite": "sqlite:///sqlite3.db"
+        "mysql": "mysql+aiomysql",
+        "postgresql": "postgresql+asyncpg",
+        "sqlite": "sqlite+aiosqlite:///sqlite3.db",
     }
 
     def __new__(cls):
@@ -97,7 +95,7 @@ class DBSetting:
                 elif self._db_engine == "postgresql":
                     if self._charset == "utf8mb4" or self._charset == "utf8":
                         # pycopg 드라이버 인코딩 설정 utf8 을 사용
-                        query_option = {"client_encoding": 'utf8'}
+                        query_option = {"client_encoding": "utf8"}
                     else:
                         query_option = {"client_encoding": self._charset}
                 url = URL(
@@ -118,9 +116,10 @@ class DBConnect(DBSetting):
     - 데이터베이스 연결을 위한 engine 및 session 생성
     - 싱글톤 패턴 구현 (단일 engine 및 session 유지)
     """
-    _engine: Annotated[Engine, None]
-    _sessionLocal: Annotated[sessionmaker[Session], None]
-    _instance: Annotated['DBConnect', None] = None
+
+    _engine = None
+    _sessionLocal = Annotated[AsyncSession, None]
+    _instance = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -134,51 +133,51 @@ class DBConnect(DBSetting):
             cls._init = True
 
     @property
-    def engine(self) -> Engine:
+    def engine(self) -> AsyncSession:
         return self._engine
 
     @engine.setter
-    def engine(self, engine: Engine) -> None:
+    def engine(self, engine: AsyncSession) -> None:
         self._engine = engine
 
     @property
-    def sessionLocal(self) -> sessionmaker[Session]:
+    def sessionLocal(self) -> async_sessionmaker:
         return self._sessionLocal
 
     @sessionLocal.setter
-    def sessionLocal(self, sessionLocal: sessionmaker[Session]) -> None:
+    def sessionLocal(self, sessionLocal: async_sessionmaker) -> None:
         self._sessionLocal = sessionLocal
 
     def create_engine(self) -> None:
-        self.engine = create_engine(
-            self._url,
-            poolclass=QueuePool,
-            pool_size=20,
-            max_overflow=40,
-            pool_timeout=60
+        self._engine = create_async_engine(
+            self._url, pool_size=20, max_overflow=40, pool_timeout=60
         )
-
         self.create_sessionmaker()
 
     def create_sessionmaker(self) -> None:
-        self._sessionLocal = sessionmaker(autocommit=False, autoflush=False,
-                                          bind=self.engine, expire_on_commit=True)
+        self._sessionLocal = async_sessionmaker(
+            autocommit=False, autoflush=False, bind=self._engine, expire_on_commit=True
+        )
 
 
 db_connect = DBConnect()
 # 데이터베이스 url이 없을 경우, 설치를 위해 임시로 메모리 DB 사용
-db_connect.url = db_connect.url or "sqlite://"
+db_connect.url = db_connect.url or "sqlite+aiosqlite://"
 db_connect.create_engine()
 
 
-# 데이터베이스 세션을 가져오는 의존성 함수
-async def get_db() -> AsyncGenerator[Session, None]:
-    db = DBConnect().sessionLocal()
+# 비동기 방식으로 수정된 의존성 함수
+async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
+    async_session: AsyncSession = DBConnect()._sessionLocal()
     try:
-        yield db
+        yield async_session
+        await async_session.commit()
+    except Exception:
+        await async_session.rollback()
+        raise
     finally:
-        db.close()
+        await async_session.close()
 
 
-# Annotated를 사용하여 의존성 주입
-db_session = Annotated[Session, Depends(get_db)]
+# 비동기 세션을 위한 의존성 주입
+db_session = Annotated[AsyncSession, Depends(get_async_db)]

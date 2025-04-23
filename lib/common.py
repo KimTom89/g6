@@ -204,7 +204,7 @@ def get_from_list(lst, index, default=0):
         return default
 
 
-def select_query(request: Request, db: db_session, table_model, search_params: dict,
+async def select_query(request: Request, db: db_session, table_model, search_params: dict,
         same_search_fields: Optional[List[str]] = "", # 값이 완전히 같아야지만 필터링 '검색어'
         prefix_search_fields: Optional[List[str]] = "", # 뒤에 %를 붙여서 필터링 '검색어%'
         default_sod: str = "asc",
@@ -262,9 +262,9 @@ def select_query(request: Request, db: db_session, table_model, search_params: d
     page = search_params['current_page']
     offset = (page - 1) * records_per_page if page > 0 else 0
     # 최종 쿼리 결과를 가져옵니다.
-    rows = db.scalars(query.add_columns(table_model).offset(offset).limit(records_per_page)).all()
+    rows = (await db.scalars(query.add_columns(table_model).offset(offset).limit(records_per_page))).all()
     # 전체 레코드 개수 계산
-    total_count = db.scalar(query.add_columns(func.count()).select_from(table_model).order_by(None))
+    total_count = (await db.scalar(query.add_columns(func.count()).select_from(table_model).order_by(None)))
 
     return {
         "rows": rows,

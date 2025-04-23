@@ -58,9 +58,9 @@ async def visit_search(
     # 페이지 번호에 따른 offset 계산
     offset = (current_page - 1) * records_per_page
     # 전체 레코드 개수 계산
-    total_records = db.scalar(query.add_columns(func.count(Visit.vi_id)).order_by(None))
+    total_records = await db.scalar(query.add_columns(func.count(Visit.vi_id)).order_by(None))
     # 최종 쿼리 결과를 가져옵니다.
-    visits = db.scalars(query.add_columns(Visit).offset(offset).limit(records_per_page)).all()
+    visits = (await db.scalars(query.add_columns(Visit).offset(offset).limit(records_per_page))).all()
 
     for visit in visits:
         visit.referer = visit.vi_referer[:255] if visit.vi_referer else ""
@@ -85,7 +85,7 @@ async def visit_delete(request: Request, db: db_session):
     request.session["menu_key"] = VISIT_DELETE_MENU_KEY
 
     now_year = datetime.now().year
-    min_date = db.scalar(select(func.min(Visit.vi_date).label('min_date')))
+    min_date = await db.scalar(select(func.min(Visit.vi_date).label('min_date')))
     min_year = min_date.year if min_date else now_year
 
     context = {
@@ -121,7 +121,7 @@ async def visit_delete_update(
     if not month:
         raise AlertException("월을 선택해 주세요.")
 
-    total_records = db.scalar(select(func.count(Visit.vi_id)))
+    total_records = await db.scalar(select(func.count(Visit.vi_id)))
     year = int(year)
     month = int(month)
     delete_date = datetime(year, month, 1)
@@ -140,8 +140,8 @@ async def visit_delete_update(
     else:
         raise AlertException("잘못된 요청입니다.", 400)
 
-    result = db.execute(query)
-    db.commit()
+    result = await db.execute(query)
+    await db.commit()
 
     raise AlertException(
         f"총 {total_records}개의 자료 중 {result.rowcount}개의 자료가 삭제되었습니다.",
@@ -197,18 +197,18 @@ async def visit_list(
     records_per_page = getattr(config, "cf_page_rows", 10)
     offset = (current_page - 1) * records_per_page
     # 전체 레코드 개수 계산
-    total_records = db.scalar(query.add_columns(func.count(Visit.vi_id)).order_by(None))
+    total_records = await db.scalar(query.add_columns(func.count(Visit.vi_id)).order_by(None))
     # 최종 쿼리 결과를 가져옵니다.
     if db.bind.dialect.name == 'sqlite':
         visit_datetime = Visit.vi_date.concat(" ").concat(Visit.vi_time)
         concat_expr = func.strftime('%Y-%m-%d %H:%M:%S', visit_datetime)
     else:
         concat_expr = func.concat(Visit.vi_date, ' ', Visit.vi_time)
-    visits = db.scalars(
+    visits = (await db.scalars(
         query.add_columns(Visit, concat_expr.label("vi_datetime"))
         .offset(offset)
         .limit(records_per_page)
-    ).all()
+    )).all()
 
     context = {
         "request": request,
@@ -235,10 +235,10 @@ async def visit_domain(
     from_date, to_date = validate_time(from_date, to_date)
 
     # 초기 쿼리 설정
-    visits = db.scalars(
+    visits = (await db.scalars(
         select(Visit)
         .where(Visit.vi_date.between(from_date, to_date + " 23:59:59"))
-    ).all()
+    )).all()
 
     site_url = f"{request.base_url.scheme}://{request.base_url.hostname}"
     if request.base_url.port:
@@ -291,10 +291,10 @@ async def visit_browser(
     from_date, to_date = validate_time(from_date, to_date)
 
     # 초기 쿼리 설정
-    visits = db.scalars(
+    visits = (await db.scalars(
         select(Visit)
         .where(Visit.vi_date.between(from_date, to_date + " 23:59:59"))
-    ).all()
+    )).all()
 
     # 브라우저별 접속자집계
     filtered_visits = []
@@ -334,10 +334,10 @@ async def visit_os(
     from_date, to_date = validate_time(from_date, to_date)
 
     # 초기 쿼리 설정
-    visits = db.scalars(
+    visits = (await db.scalars(
         select(Visit)
         .where(Visit.vi_date.between(from_date, to_date + " 23:59:59"))
-    ).all()
+    )).all()
 
     # OS별 접속자집계
     filtered_visits = []
@@ -377,10 +377,10 @@ async def visit_device(
     from_date, to_date = validate_time(from_date, to_date)
 
     # 초기 쿼리 설정
-    visits = db.scalars(
+    visits = (await db.scalars(
         select(Visit)
         .where(Visit.vi_date.between(from_date, to_date + " 23:59:59"))
-    ).all()
+    )).all()
 
     # 접속기기별 접속자집계
     filtered_visits = []
@@ -422,7 +422,7 @@ async def visit_hour(
 
     query = select().where(Visit.vi_date.between(from_date, to_date + " 23:59:59"))
     # 합계
-    total_count = db.scalar(query.add_columns(func.count(Visit.vi_id)))
+    total_count = await db.scalar(query.add_columns(func.count(Visit.vi_id)))
     # 시간별 접속자집계
     # TODO: postgresql는 테스트가 안되어 있음
     if dialect == 'mysql':
@@ -431,10 +431,10 @@ async def visit_hour(
         query = query.add_columns(func.to_char(Visit.vi_time, 'HH24').label('hour'))
     elif dialect == 'sqlite':
         query = query.add_columns(func.strftime('%H', Visit.vi_time).label('hour'))
-    query_result = db.execute(
+    query_result = (await db.execute(
         query.add_columns(func.count().label('hour_count'))
         .group_by('hour')
-    ).all()
+    )).all()
 
     # 00 ~ 23 시간별 접속자집계
     visits = {f"{hour:02d}": {"count": 0, "rate": 0} for hour in range(24)}
@@ -470,7 +470,7 @@ async def visit_weekday(
 
     query = select().where(Visit.vi_date.between(from_date, to_date + " 23:59:59"))
     # 합계
-    total_count = db.scalar(query.add_columns(func.count(Visit.vi_id)))
+    total_count = await db.scalar(query.add_columns(func.count(Visit.vi_id)))
     # 요일별 접속자집계
     # TODO: postgresql는 테스트가 안되어 있음
     if dialect == 'mysql':
@@ -479,12 +479,12 @@ async def visit_weekday(
         query = query.add_columns(func.to_char(Visit.vi_date, 'D').label('dow'))
     elif dialect == 'sqlite':
         query = query.add_columns(func.strftime('%w', Visit.vi_date).label('dow'))
-    query_result = db.execute(
+    query_result = (await db.execute(
         query.add_columns(Visit.vi_date, func.count().label('dow_count'))
         .group_by(Visit.vi_date, 'dow')
         # 데이터베이스 별로 요일(day of week)을 출력하는 기준이 다르기 때문에
         # vi_date 가 필요하다.
-    ).all()
+    )).all()
 
     # 요일별 접속자집계
     day_of_week = {
@@ -529,10 +529,10 @@ async def visit_date(
     from_date, to_date = validate_time(from_date, to_date)
 
     # 초기 쿼리 설정
-    visits = db.scalars(
+    visits = (await db.scalars(
         select(Visit)
         .where(Visit.vi_date.between(from_date, to_date + " 23:59:59"))
-    ).all()
+    )).all()
 
     # 접속자집계
     filtered_visits = []
@@ -572,10 +572,10 @@ async def visit_month(
     from_date, to_date = validate_time(from_date, to_date)
 
     # 초기 쿼리 설정
-    visits = db.scalars(
+    visits = (await db.scalars(
         select(Visit)
         .where(Visit.vi_date.between(from_date, to_date + " 23:59:59"))
-    ).all()
+    )).all()
 
     # 접속자집계
     filtered_visits = []
@@ -615,10 +615,10 @@ async def visit_year(
     from_date, to_date = validate_time(from_date, to_date)
 
     # 초기 쿼리 설정
-    visits = db.scalars(
+    visits = (await db.scalars(
         select(Visit)
         .where(Visit.vi_date.between(from_date, to_date + " 23:59:59"))
-    ).all()
+    )).all()
 
     # 접속자집계
     filtered_visits = []

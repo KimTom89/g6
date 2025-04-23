@@ -36,7 +36,7 @@ async def poll_list(
     request.session["menu_key"] = POLL_MENU_KEY
 
     # 설문조사 목록 데이터 출력
-    polls = select_query(
+    polls = await select_query(
         request,
         db,
         Poll,
@@ -70,12 +70,13 @@ async def poll_list_delete(
     설문조사 목록 삭제
     """
     # in 조건을 사용해서 일괄 삭제
-    db.execute(delete(Poll).where(Poll.po_id.in_(checks)))
-    db.execute(delete(PollEtc).where(PollEtc.po_id.in_(checks)))
-    db.commit()
+    await db.execute(delete(Poll).where(Poll.po_id.in_(checks)))
+    await db.execute(delete(PollEtc).where(PollEtc.po_id.in_(checks)))
+    await db.commit()
 
     # 기존캐시 삭제
-    service.fetch_latest_poll.cache_clear()
+    # 25.04.23 비동기처리로 인한 일시적 캐시사용 중지
+    # service.fetch_latest_poll.cache_clear()
 
     url = "/admin/poll_list"
     query_params = request.query_params
@@ -100,7 +101,7 @@ async def poll_form_edit(
     """
     설문조사 수정 폼
     """
-    poll = db.get(Poll, po_id)
+    poll = await db.get(Poll, po_id)
     context = {"request": request, "poll": poll}
     return templates.TemplateResponse("poll_form.html", context)
 
@@ -119,7 +120,7 @@ async def poll_form_update(
 
     # 설문조사 수정
     if po_id:
-        poll = db.get(Poll, po_id)
+        poll = await db.get(Poll, po_id)
         if not poll:
             raise AlertException("설문조사가 존재하지 않습니다.", 404)
 
@@ -128,16 +129,17 @@ async def poll_form_update(
             if value is None:
                 value = ""
             setattr(poll, field, value)
-        db.commit()
+        await db.commit()
 
     # 설문조사 등록
     else:
         poll = Poll(**form_data.__dict__)
         db.add(poll)
-        db.commit()
+        await db.commit()
 
     # 기존캐시 삭제
-    service.fetch_latest_poll.cache_clear()
+    # 25.04.23 비동기처리로 인한 일시적 캐시사용 중지
+    # service.fetch_latest_poll.cache_clear()
 
     url = f"/admin/poll_form/{poll.po_id}"
     query_params = request.query_params

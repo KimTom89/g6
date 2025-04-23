@@ -27,8 +27,8 @@ from lib.template_functions import (
     option_selected, option_array_checked, subject_sort_link
 )
 
-@cached(LRUCache(maxsize=128))
-def get_current_theme() -> str:
+# @cached(LRUCache(maxsize=128))
+async def get_current_theme() -> str:
     """현재 설정된 테마를 반환
     - 설정된 테마가 존재하지 않을 경우 기본 테마를 반환
 
@@ -37,14 +37,14 @@ def get_current_theme() -> str:
     """
     default_theme = "basic"
     try:
-        with DBConnect().sessionLocal() as db:
-            theme = db.scalar(select(Config.cf_theme)) or default_theme
+        async with DBConnect().sessionLocal() as db:
+            theme = (await db.scalar(select(Config.cf_theme))) or default_theme
             return theme
     except Exception:
         return default_theme
 
 
-def get_theme_path() -> str:
+async def get_theme_path() -> str:
     """기본환경설정 > 테마의 설정 경로를 반환
     - 설정된 테마가 존재하지 않을 경우 기본 테마를 반환
 
@@ -53,7 +53,7 @@ def get_theme_path() -> str:
     """
     default_theme_path = f"{TEMPLATES}/basic"
 
-    theme = get_current_theme()
+    theme = await get_current_theme()
     theme_path = f"{TEMPLATES}/{theme}"
 
     # 실제 테마가 존재하는지 확인
@@ -98,15 +98,15 @@ class TemplateService():
     _templates_dir: str = None  # 사용자 템플릿 경로
 
     @classmethod
-    def get_templates_dir(cls) -> str:
+    async def get_templates_dir(cls) -> str:
         if cls._templates_dir is None:
-            cls.set_templates_dir()
+            await cls.set_templates_dir()
 
         return cls._templates_dir
 
     @classmethod
-    def set_templates_dir(cls) -> None:
-        cls._templates_dir = get_theme_path()
+    async def set_templates_dir(cls) -> None:
+        cls._templates_dir = await get_theme_path()
 
 
 class UserTemplates(Jinja2Templates):
@@ -117,12 +117,7 @@ class UserTemplates(Jinja2Templates):
     """
     _instance = None
     _is_mobile: bool = False
-    default_directories = [
-        TemplateService.get_templates_dir(),
-        EDITOR_PATH,
-        CAPTCHA_PATH,
-        PLUGIN_DIR
-    ]
+    default_directories = [EDITOR_PATH, CAPTCHA_PATH, PLUGIN_DIR]
 
     def __new__(cls, *args, **kwargs):
         if not cls._instance:
@@ -136,6 +131,7 @@ class UserTemplates(Jinja2Templates):
                  env: Environment = None):
         if not getattr(self, '_initialized', False):
             self._initialized = True
+
             super().__init__(directory=self.default_directories,
                              context_processors=context_processors)
 
@@ -153,20 +149,36 @@ class UserTemplates(Jinja2Templates):
             self.env.globals["get_total_visit"] = get_total_visit
             self.env.globals["encrypt"] = StringEncrypt().encrypt
 
-            # 템플릿 컨텍스트 프로세서 설정
-            self.context_processors.append(self._default_context)
             # 추가 env.global 설정
             if globals:
                 self.env.globals.update(**globals.__dict__)
 
-    def _default_context(self, request: Request):
-        # Lazy import
-        from lib.board_lib import render_latest_posts
+    @classmethod
+    async def create(cls, context_processors=None) -> "UserTemplates":
+        instance = cls(context_processors=context_processors)
 
-        context = {
-            "render_latest_posts": render_latest_posts,
-        }
-        return context
+        if instance._initialized:
+            # 비동기 초기화 작업 수행
+            templates_dir = await TemplateService.get_templates_dir()
+            instance.default_directories.insert(0, templates_dir)
+
+            # 로더 재설정
+            instance.env.loader = FileSystemLoader(instance.default_directories)
+
+            # Lazy import
+            from lib.board_lib import render_latest_posts
+            instance.env.globals["render_latest_posts"] = render_latest_posts
+
+        return instance
+
+    # def _default_context(self, request: Request):
+    #     # Lazy import
+    #     from lib.board_lib import render_latest_posts
+
+    #     context = {
+    #         "render_latest_posts": render_latest_posts,
+    #     }
+    #     return context
 
     def TemplateResponse(
         self,
@@ -189,7 +201,9 @@ class UserTemplates(Jinja2Templates):
         if (not settings.IS_RESPONSIVE
                 and self._is_mobile != is_mobile):
             # 경로 우선순위 변경
-            mobile_dir = f"{TemplateService.get_templates_dir()}/mobile"
+            # 25.04.23 비동기 처리로 인해 임시 기본 템플릿 경로로 사용
+            # 추후 모바일 경로 제거 예정
+            mobile_dir = "basic/mobile"
             if is_mobile:
                 self.default_directories.insert(0, mobile_dir)
             else:
@@ -245,7 +259,6 @@ class AdminTemplates(Jinja2Templates):
             self.env.globals["get_selected"] = get_selected
             self.env.globals["get_member_icon"] = get_member_icon
             self.env.globals["get_member_image"] = get_member_image
-            self.env.globals["theme_asset"] = theme_asset
             self.env.globals["get_all_plugin_module_names"] = get_all_plugin_module_names
             self.env.globals["get_plugin_state_cache"] = get_plugin_state_cache
             self.env.globals["get_admin_plugin_menus"] = get_admin_plugin_menus
@@ -268,10 +281,13 @@ class AdminTemplates(Jinja2Templates):
         return context
 
 
-def theme_asset(request: Request, asset_path: str) -> str:
+def theme_asset(asset_path: str) -> str:
     """
     현재 테마의 asset url을 반환하는 헬퍼 함수
 
+    Todo: 
+        테마를 글로벌 변수로 설정해서 가져와야함
+    
     Args:
         request (Request): Request 객체
         asset_path (str): 플러그인 모듈 이름
@@ -279,12 +295,13 @@ def theme_asset(request: Request, asset_path: str) -> str:
     Returns:
         asset_url (str): asset url
     """
-    theme = get_current_theme()
-
+    # Todo: 테마 적용 후 수정 필요
+    # theme = await get_current_theme()
+    theme = "basic"
     return f"/theme_static/{theme}/{asset_path}"
 
 
-def register_theme_statics(app: FastAPI) -> None:
+async def register_theme_statics(app: FastAPI) -> None:
     """
     현재 테마의 static 경로를 가상의 경로로 등록하는 함수
     - ex) PC: /{theme}/basic/static/css -> /theme_static/basic/css
@@ -293,7 +310,7 @@ def register_theme_statics(app: FastAPI) -> None:
     Args:
         app (FastAPI): FastAPI 객체
     """
-    theme = get_current_theme()
+    theme = await get_current_theme()
     directories = ["/mobile", ""]
     for directory in directories:
         static_directory = f"{TEMPLATES}/{theme}{directory}/static"

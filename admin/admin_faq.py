@@ -6,6 +6,7 @@ from typing_extensions import Annotated
 from fastapi import APIRouter, Depends, File, Form, Path, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from core.database import db_session
 from core.formclass import FaqForm, FaqMasterForm
@@ -26,9 +27,9 @@ async def faq_master_list(request: Request, db: db_session):
     """FAQ관리 목록"""
     request.session["menu_key"] = FAQ_MENU_KEY
 
-    faq_masters = db.scalars(
-        select(FaqMaster).order_by(FaqMaster.fm_order)
-    ).all()
+    faq_masters = (await db.scalars(
+        select(FaqMaster).options(selectinload(FaqMaster.related_faqs)).order_by(FaqMaster.fm_order)
+    )).all()
 
     context = {
         "request": request,
@@ -61,7 +62,7 @@ async def faq_master_add(
     """FAQ관리 등록 처리"""
     faq_master = FaqMaster(**form.__dict__)
     db.add(faq_master)
-    db.commit()
+    await db.commit()
 
     # 이미지 경로 생성
     os.makedirs(FAQ_FILE_PATH, exist_ok=True)
@@ -88,7 +89,7 @@ async def faq_master_update_form(
     """FAQ관리 수정 폼"""
     request.session["menu_key"] = FAQ_MENU_KEY
 
-    faq_master = db.get(FaqMaster, fm_id)
+    faq_master = await db.get(FaqMaster, fm_id)
     head_image = get_head_tail_img('faq', str(faq_master.fm_id) + "_h")
     tail_image = get_head_tail_img('faq', str(faq_master.fm_id) + "_t")
 
@@ -113,10 +114,10 @@ async def faq_master_update(
     fm_timg_del: int = Form(None),
 ):
     """FAQ관리 수정 처리"""
-    faq_master = db.get(FaqMaster, fm_id)
+    faq_master = await db.get(FaqMaster, fm_id)
     for field, value in form.__dict__.items():
         setattr(faq_master, field, value)
-    db.commit()
+    await db.commit()
 
     file_path_h = os.path.join(FAQ_FILE_PATH, f"{fm_id}_h")
     file_path_t = os.path.join(FAQ_FILE_PATH, f"{fm_id}_t")
@@ -148,9 +149,9 @@ async def faq_master_delete(
     fm_id: Annotated[int, Path()]
 ):
     """FAQ관리 삭제 처리"""
-    faq_master = db.get(FaqMaster, fm_id)
-    db.delete(faq_master)
-    db.commit()
+    faq_master = await db.get(FaqMaster, fm_id)
+    await db.delete(faq_master)
+    await db.commit()
 
     return JSONResponse(content={"message": "FAQ가 성공적으로 삭제되었습니다."},
                         status_code=200)
@@ -165,7 +166,7 @@ async def faq_list(
     """FAQ목록"""
     request.session["menu_key"] = FAQ_MENU_KEY
 
-    faq_master = db.get(FaqMaster, fm_id)
+    faq_master = await db.get(FaqMaster, fm_id)
     faqs = faq_master.related_faqs.order_by(Faq.fa_order.asc()).all()
 
     context = {
@@ -185,7 +186,7 @@ async def faq_add_form(
     """FAQ항목 등록 폼"""
     request.session["menu_key"] = FAQ_MENU_KEY
 
-    faq_master = db.get(FaqMaster, fm_id)
+    faq_master = await db.get(FaqMaster, fm_id)
 
     context = {
         "request": request,
@@ -203,10 +204,10 @@ async def faq_add(
     form: FaqForm = Depends(),
 ):
     """FAQ관리 등록 처리"""
-    faq_master = db.get(FaqMaster, fm_id)
+    faq_master = await db.get(FaqMaster, fm_id)
     faq = Faq(fm_id=faq_master.fm_id, **form.__dict__)
     db.add(faq)
-    db.commit()
+    await db.commit()
 
     return RedirectResponse(url=f"/admin/faq_form/{fm_id}/{faq.fa_id}",
                             status_code=303)
@@ -221,7 +222,7 @@ async def faq_update_form(
     """FAQ항목 수정 폼"""
     request.session["menu_key"] = FAQ_MENU_KEY
 
-    faq = db.get(Faq, fa_id)
+    faq = await db.get(Faq, fa_id)
     faq_master = faq.faq_master
 
     context = {
@@ -241,10 +242,10 @@ async def faq_update(
     form: FaqForm = Depends(),
 ):
     """FAQ항목 수정 처리"""
-    faq = db.get(Faq, fa_id)
+    faq = await db.get(Faq, fa_id)
     for field, value in form.__dict__.items():
         setattr(faq, field, value)
-    db.commit()
+    await db.commit()
 
     return RedirectResponse(url=f"/admin/faq_form/{fm_id}/{fa_id}",
                             status_code=303)
@@ -257,9 +258,9 @@ async def faq_delete(
     fa_id: Annotated[int, Path()],
 ):
     """FAQ 항목 삭제 처리"""
-    faq = db.get(Faq, fa_id)
-    db.delete(faq)
-    db.commit()
+    faq = await db.get(Faq, fa_id)
+    await db.delete(faq)
+    await db.commit()
 
     return JSONResponse(content={"message": "FAQ 항목이 성공적으로 삭제되었습니다."},
                         status_code=200)

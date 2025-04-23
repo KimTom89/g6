@@ -148,12 +148,12 @@ class MemoService(BaseService):
             self.db.rollback()
             self.raise_exception(500, str(e))
 
-    def get_receive_members(self, mb_ids: List[int]) -> List[Member]:
+    async def get_receive_members(self, mb_ids: List[int]) -> List[Member]:
         """쪽지를 받을 회원 목록을 조회합니다."""
         members = []
         not_found_members = []
         for mb_id in mb_ids:
-            target = self.member_service.fetch_member_by_id(mb_id)
+            target = await self.member_service.fetch_member_by_id(mb_id)
             if target and target.mb_open and not (target.mb_leave_date or target.mb_intercept_date):
                 members.append(target)
             else:

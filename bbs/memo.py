@@ -144,7 +144,7 @@ async def memo_form_update(
         memo_service.update_memo_call(member, target)
 
         # 포인트 소진
-        point_service.save_point(
+        await point_service.save_point(
             member.mb_id, send_point * (-1),
             f"{target.mb_nick}({target.mb_id})님에게 쪽지 발송", "@memo",
             target.mb_id, memo.me_id)

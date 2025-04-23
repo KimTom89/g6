@@ -37,7 +37,7 @@ async def boardgroup_list(
     """
     request.session["menu_key"] = BOARDGROUP_MENU_KEY
 
-    result = select_query(
+    result = await select_query(
         request,
         db,
         Group,
@@ -71,7 +71,7 @@ async def boardgroup_list_update(
     게시판그룹 일괄 수정
     """
     for i in checks:
-        group = db.get(Group, gr_id[i])
+        group = await db.get(Group, gr_id[i])
         if group:
             group.gr_id = gr_id[i]
             group.gr_subject = gr_subject[i]
@@ -79,7 +79,7 @@ async def boardgroup_list_update(
             group.gr_use_access = get_from_list(gr_use_access, i, 0)
             group.gr_order = gr_order[i]
             group.gr_device = gr_device[i]
-            db.commit()
+            await db.commit()
 
     url = "/admin/boardgroup_list"
     query_params = request.query_params
@@ -97,18 +97,18 @@ async def boardgroup_list_delete(
     게시판그룹 일괄 삭제
     """
     for i in checks:
-        exists_board = db.scalar(
+        exists_board = await db.scalar(
             exists(Board.bo_table)
             .where(Board.gr_id == gr_id[i])
             .select()
         )
         if not exists_board:
-            db.execute(delete(Group).where(Group.gr_id == gr_id[i]))
-            db.execute(delete(GroupMember).where(GroupMember.gr_id == gr_id[i]))
+            await db.execute(delete(Group).where(Group.gr_id == gr_id[i]))
+            await db.execute(delete(GroupMember).where(GroupMember.gr_id == gr_id[i]))
         else:
             raise AlertException(f"{gr_id[i]} 게시판그룹에 속한 게시판이 존재합니다. (삭제불가)", 403)
 
-    db.commit()
+    await db.commit()
 
     url = "/admin/boardgroup_list"
     query_params = request.query_params
@@ -133,7 +133,7 @@ async def boardgroup_form(
     """
     게시판그룹 수정 폼
     """
-    group = db.get(Group, gr_id)
+    group = await db.get(Group, gr_id)
     if not group:
         raise AlertException(f"{gr_id} 게시판그룹이 존재하지 않습니다", 404)
 
@@ -157,23 +157,23 @@ async def boardgroup_form_update(
     게시판그룹 등록/수정 처리
     """
     if action == "w":
-        existing_group = db.get(Group, gr_id)
+        existing_group = await db.get(Group, gr_id)
         if existing_group:
             raise AlertException(f"{gr_id} 게시판그룹 아이디가 이미 존재합니다. (등록불가)", 400)
 
         new_group = Group(gr_id=gr_id, **form_data.__dict__)
         db.add(new_group)
-        db.commit()
+        await db.commit()
 
     elif action == "u":
-        existing_group = db.get(Group, gr_id)
+        existing_group = await db.get(Group, gr_id)
         if not existing_group:
             raise AlertException(f"{gr_id} 게시판그룹 아이디가 존재하지 않습니다. (수정불가)", 400)
 
         # 폼 데이터 반영 후 commit
         for field, value in form_data.__dict__.items():
             setattr(existing_group, field, value)
-        db.commit()
+        await db.commit()
 
     else:
         raise AlertException("잘못된 접근입니다.", 400)

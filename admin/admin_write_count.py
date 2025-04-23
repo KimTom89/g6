@@ -76,7 +76,8 @@ async def write_count(request: Request, db: db_session,
         from_date = today_min_time - timedelta(days=day_info[1])
         to_date = yesterday_max_time
     
-    bo_table_array = db.execute(select(Board.bo_table, Board.bo_subject).order_by(Board.bo_count_write.desc())).all()
+    bo_table_array = await db.execute(select(Board.bo_table, Board.bo_subject).order_by(Board.bo_count_write.desc()))
+    bo_table_array = bo_table_array.all()
 
     # Determine the current dialect
     dialect = db.bind.dialect.name
@@ -94,7 +95,7 @@ async def write_count(request: Request, db: db_session,
             # 여기에 다른 방언에 대한 코드를 추가하세요
             hours_expr = func.substr(BoardNew.bn_datetime, 12, 2)  # 이는 일반적인 경우에 대한 예입니다.
 
-        result = db.execute(
+        result = await db.execute(
             select(
                 hours_expr.label(x_label), 
                 func.sum(case((BoardNew.wr_id == BoardNew.wr_parent, 1), else_=0)).label('write_count'),
@@ -103,7 +104,8 @@ async def write_count(request: Request, db: db_session,
                 BoardNew.bn_datetime.between(from_date, to_date),
                 or_(BoardNew.bo_table == bo_table, bo_table == '')
             ).group_by(x_label, BoardNew.bn_datetime).order_by(BoardNew.bn_datetime)
-        ).all()
+        )
+        result = result.all()
 
         for row in result:
             x_data.append(f"['{row.hours[:8]}',{row.write_count}]")
@@ -122,7 +124,7 @@ async def write_count(request: Request, db: db_session,
         else:
             raise Exception(f"Unsupported dialect: {dialect}")
                                     
-        result = db.execute(
+        result = await db.execute(
             select(
                 date_expr.label(x_label), 
                 func.sum(case((BoardNew.wr_id == BoardNew.wr_parent, 1), else_=0)).label('write_count'),
@@ -131,7 +133,8 @@ async def write_count(request: Request, db: db_session,
                 BoardNew.bn_datetime.between(from_date, to_date),
                 or_(BoardNew.bo_table == bo_table, bo_table == '')
             ).group_by(x_label, BoardNew.bn_datetime).order_by(BoardNew.bn_datetime)
-        ).all()
+        )
+        result = result.all()
         
         for row in result:
             x_data.append(f"['{row.days[5:10]}',{row.write_count}]")
@@ -153,7 +156,7 @@ async def write_count(request: Request, db: db_session,
         else:
             raise Exception(f"Unsupported dialect: {dialect}")
 
-        result = db.execute(
+        result = await db.execute(
             select(
                 concat_expr.label(x_label), 
                 func.sum(case((BoardNew.wr_id == BoardNew.wr_parent, 1), else_=0)).label('write_count'),
@@ -162,7 +165,8 @@ async def write_count(request: Request, db: db_session,
                 BoardNew.bn_datetime.between(from_date, to_date),
                 or_(BoardNew.bo_table == bo_table, bo_table == '')
             ).group_by(x_label, BoardNew.bn_datetime).order_by(BoardNew.bn_datetime)
-        ).all()
+        )
+        result = result.all()
         
         for row in result:
             lyear, lweek = row.weeks.split('-')
@@ -183,7 +187,7 @@ async def write_count(request: Request, db: db_session,
         else:
             raise Exception(f"Unsupported dialect: {dialect}")
 
-        result = db.execute(
+        result = await db.execute(
             select(
                 month_expr.label(x_label), 
                 func.sum(case((BoardNew.wr_id == BoardNew.wr_parent, 1), else_=0)).label('write_count'),
@@ -192,7 +196,8 @@ async def write_count(request: Request, db: db_session,
                 BoardNew.bn_datetime.between(from_date, to_date),
                 or_(BoardNew.bo_table == bo_table, bo_table == '')
             ).group_by(x_label, BoardNew.bn_datetime).order_by(BoardNew.bn_datetime)
-        ).all()
+        )
+        result = result.all()
 
         for row in result:
             x_data.append(f"['{row.months[2:7]}',{row.write_count}]")
@@ -211,7 +216,7 @@ async def write_count(request: Request, db: db_session,
         else:
             raise Exception(f"Unsupported dialect: {dialect}")
 
-        result = db.execute(
+        result = await db.execute(
             select(
                 year_expr.label(x_label), 
                 func.sum(case((BoardNew.wr_id == BoardNew.wr_parent, 1), else_=0)).label('write_count'),
@@ -220,7 +225,8 @@ async def write_count(request: Request, db: db_session,
                 BoardNew.bn_datetime.between(from_date, to_date),
                 or_(BoardNew.bo_table == bo_table, bo_table == '')
             ).group_by(x_label, BoardNew.bn_datetime).order_by(BoardNew.bn_datetime)
-        ).all()
+        )
+        result = result.all()
 
         for row in result:
             year = str(row.years)[:4]

@@ -35,20 +35,28 @@ class PointService(BaseService):
     def raise_exception(self, status_code: int, detail: str = None, url: str = None):
         raise AlertException(status_code=status_code, detail=detail, url=url)
 
-    def fetch_total_records(self, member: Member) -> int:
+    async def fetch_total_records(self, member: Member) -> int:
         """
         포인트 목록의 총 개수를 데이터베이스에서 조회합니다.
         """
-        return member.points.count()
+        return await self.db.scalar(
+            select(func.count(Point.po_id))
+            .where(Point.mb_id == member.mb_id)
+        )
 
-    def fetch_points(self, member: Member, offset: int = 0, per_page: int = 10):
+    async def fetch_points(self, member: Member, offset: int = 0, per_page: int = 10) -> List[Point]:
         """
         포인트 목록을 데이터베이스에서 조회합니다.
         """
-        return (member.points
-                .order_by(Point.po_id.desc())
-                .offset(offset).limit(per_page)
-                .all())
+        query = select(Point).where(Point.mb_id == member.mb_id).order_by(Point.po_id.desc())
+        if offset:
+            query = query.offset(offset)
+        if per_page:
+            query = query.limit(per_page)
+
+        result = await self.db.scalars(query)
+
+        return result.all()
 
     def calculate_sum(self, points: List[Point]) -> dict:
         """
@@ -64,7 +72,7 @@ class PointService(BaseService):
 
         return {"positive": positive, "negative": negative}
 
-    def save_point(self, mb_id: str, point: int, content: str = "",
+    async def save_point(self, mb_id: str, point: int, content: str = "",
                    rel_table: str = "", rel_id: str = "", rel_action: str = "",
                    expire: int = 0) -> None:
         """
@@ -75,12 +83,12 @@ class PointService(BaseService):
         if point == 0:  # 포인트가 0일 경우
             return None
 
-        member = self.member_service.fetch_member_by_id(mb_id)
+        member = await self.member_service.fetch_member_by_id(mb_id)
         if not member:  # 회원정보가 없을 경우
             return None
 
         if rel_table or rel_id or rel_action:  # 동일한 내용으로 포인트를 적립한 내역 체크
-            point_row = self._fetch_point_by_relation(mb_id, rel_table,
+            point_row = await self._fetch_point_by_relation(mb_id, rel_table,
                                                       str(rel_id), rel_action)
             if point_row:
                 return None
@@ -97,7 +105,7 @@ class PointService(BaseService):
             po_expired = 1
             po_expire_date = datetime.now()
 
-        mb_point = self.get_total_point(mb_id)
+        mb_point = await self.get_total_point(mb_id)
         po_mb_point = mb_point + point
 
         new_point = Point(
@@ -115,7 +123,7 @@ class PointService(BaseService):
         self.db.add(new_point)
 
         # 회원 포인트 갱신
-        self.member_service.update_member_point(mb_id, po_mb_point)
+        await self.member_service.update_member_point(mb_id, po_mb_point)
 
     def get_config_point(self, cf_name: str) -> int:
         """
@@ -123,20 +131,20 @@ class PointService(BaseService):
         """
         return getattr(self.config, cf_name, 0)
 
-    def get_total_point(self, mb_id: str) -> int:
+    async def get_total_point(self, mb_id: str) -> int:
         """
         회원의 포인트 총합
         """
         # 만료된 포인트들을 소진 처리
-        expire_point = self._fetch_expire_points(mb_id)
+        expire_point = await self._fetch_expire_points(mb_id)
         if expire_point > 0:
-            self._insert_expire_point(mb_id, expire_point)
+            await self._insert_expire_point(mb_id, expire_point)
 
         # 만료된 포인트 내역 업데이트
-        self._update_expired_points(mb_id)
+        await self._update_expired_points(mb_id)
 
         # 포인트 총합
-        point_sum = self.db.scalar(
+        point_sum = await self.db.scalar(
             select(func.sum(Point.po_point))
             .where(Point.mb_id == mb_id)
         )
@@ -187,14 +195,14 @@ class PointService(BaseService):
                 self.db.commit()
                 using_point -= deduction_point
 
-    def delete_point(self, mb_id: str, rel_table: str, rel_id: str, rel_action: str) -> None:
+    async def delete_point(self, mb_id: str, rel_table: str, rel_id: str, rel_action: str) -> None:
         """
         포인트 내역 삭제
         """
         result = False
 
         # 포인트 내역정보
-        row = self._fetch_point_by_relation(mb_id, rel_table, rel_id, rel_action)
+        row = await self._fetch_point_by_relation(mb_id, rel_table, rel_id, rel_action)
         if row:
             if row.po_point and row.po_point > 0:
                 abs_po_point = abs(row.po_point)
@@ -227,7 +235,7 @@ class PointService(BaseService):
                     self.db.commit()
 
                 # 회원 포인트 총합 갱신
-                sum_point = self.get_total_point(mb_id)
+                sum_point = await self.get_total_point(mb_id)
                 self.member_service.update_member_point(mb_id, sum_point)
 
         return result
@@ -323,12 +331,12 @@ class PointService(BaseService):
             self.db.commit()
             point1 = point1 - point2
 
-    def _fetch_point_by_relation(self, mb_id: str,
+    async def _fetch_point_by_relation(self, mb_id: str,
                                  rel_table: str, rel_id: str, rel_action: str):
         """
         포인트 적립 내용으로 내역을 조회합니다.
         """
-        return self.db.scalar(
+        return await self.db.scalar(
             select(Point)
             .where(Point.mb_id == mb_id,
                     Point.po_rel_table == rel_table,
@@ -336,14 +344,14 @@ class PointService(BaseService):
                     Point.po_rel_action == rel_action)
         )
 
-    def _fetch_expire_points(self, mb_id: str) -> int:
+    async def _fetch_expire_points(self, mb_id: str) -> int:
         """
         회원의 만료 예정 포인트 얻기
         """
         if self.point_term <= 0:
             return 0
 
-        point_sum = self.db.scalar(
+        point_sum = await self.db.scalar(
             select(func.sum(Point.po_point - Point.po_use_point))
             .where(Point.mb_id == mb_id,
                    Point.po_expired == 0,
@@ -352,11 +360,11 @@ class PointService(BaseService):
 
         return int(point_sum) if point_sum else 0
 
-    def _insert_expire_point(self, mb_id: str, point: int) -> None:
+    async def _insert_expire_point(self, mb_id: str, point: int) -> None:
         """
         만료된 포인트만큼 포인트를 소멸시킵니다.
         """
-        member = self.member_service.fetch_member_by_id(mb_id)
+        member = await self.member_service.fetch_member_by_id(mb_id)
         mb_point = member.mb_point if member else 0
         expired_point = point * (-1)
         new_point = Point(
@@ -371,7 +379,7 @@ class PointService(BaseService):
             po_rel_action='expire-' + str(uuid.uuid4()),
         )
         self.db.add(new_point)
-        self.db.commit()
+        await self.db.commit()
 
         # 포인트를 사용한 경우 포인트 내역에 사용금액 기록
         # TODO: 주석처리된 이유를 확인해야 함
@@ -379,11 +387,11 @@ class PointService(BaseService):
             # insert_use_point(mb_id, point)
             pass
 
-    def _update_expired_points(self, mb_id: str) -> None:
+    async def _update_expired_points(self, mb_id: str) -> None:
         if self.point_term <= 0:
             return None
 
-        self.db.execute(
+        await self.db.execute(
             update(Point).values(po_expired=1)
             .where(Point.mb_id == mb_id,
                    Point.po_expired != 1,
@@ -391,6 +399,6 @@ class PointService(BaseService):
                    Point.po_expire_date < datetime.now()
             )
         )
-        self.db.commit()
+        await self.db.commit()
 
         return None

@@ -28,13 +28,13 @@ class CurrentConnectService(BaseService):
     def raise_exception(self, status_code: int, detail: str = None, url: str = None):
         return AlertException(status_code=status_code, detail=detail, url=url)
 
-    @cached(LRUCache(maxsize=1),
-            key=lambda self, only_member=False: hashkey("connects_count", only_member))
-    def fetch_total_records(self, only_member: bool = False) -> int:
+    # @cached(LRUCache(maxsize=1),
+    #         key=lambda self, only_member=False: hashkey("connects_count", only_member))
+    async def fetch_total_records(self, only_member: bool = False) -> int:
         """현재 접속중인 회원의 총 수를 반환합니다."""
         query = self._base_query(only_member)
 
-        return self.db.scalar(query.add_columns(func.count(Login.mb_id)))
+        return await self.db.scalar(query.add_columns(func.count(Login.mb_id)))
 
     def fetch_corrent_connects(self, only_member: bool = False,
                              offset: int = 0, per_page: int = 10) -> Sequence[Row[Any]]:
@@ -48,14 +48,14 @@ class CurrentConnectService(BaseService):
             .offset(offset).limit(per_page)
         ).all()
 
-    def fetch_current_connect(self, ip: str) -> Login:
+    async def fetch_current_connect(self, ip: str) -> Login:
         """특정 IP의 현재 접속자 정보를 반환합니다."""
-        return self.db.scalar(select(Login).where(Login.lo_ip == ip))
+        return await self.db.scalar(select(Login).where(Login.lo_ip == ip))
 
-    def create_current_connect(self, ip: str,
+    async def create_current_connect(self, ip: str,
                                path: str, mb_id: str = "") -> None:
         """현재 접속자 정보를 생성합니다."""
-        self.db.execute(
+        await self.db.execute(
             insert(Login).values(
                 lo_ip=ip,
                 mb_id=mb_id,
@@ -63,12 +63,12 @@ class CurrentConnectService(BaseService):
                 lo_url=path
             )
         )
-        self.db.commit()
+        await self.db.commit()
 
         # 캐시 초기화
-        self.fetch_total_records.cache_clear()
+        await self.fetch_total_records()
 
-    def update_current_connect(self, login: Login,
+    async def update_current_connect(self, login: Login,
                                path: str, mb_id: str = "") -> None:
         """현재 접속자 정보를 갱신합니다."""
         login.mb_id = mb_id
@@ -76,18 +76,18 @@ class CurrentConnectService(BaseService):
         login.lo_location = path
         login.lo_url = path
 
-        self.db.commit()
+        await self.db.commit()
 
-    def delete_current_connect(self) -> None:
+    async def delete_current_connect(self) -> None:
         """설정 시간 이전의 현재 접속자 정보를 삭제합니다."""
-        result = self.db.execute(
+        result = await self.db.execute(
             delete(Login).where(Login.lo_datetime < self.base_date)
         )
-        self.db.commit()
+        await self.db.commit()
 
         # 캐시 초기화
         if result.rowcount:
-            self.fetch_total_records.cache_clear()
+            await self.fetch_total_records()
 
     def _base_query(self, only_member: bool = False) -> Select:
         """기본 쿼리를 반환합니다."""

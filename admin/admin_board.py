@@ -47,7 +47,7 @@ async def board_list(
     """
     request.session["menu_key"] = BOARD_MENU_KEY
 
-    result = select_query(
+    result = await select_query(
         request,
         db,
         Board,
@@ -87,7 +87,7 @@ async def board_list_update(
     게시판관리 목록 일괄수정
     """
     for i in checks:
-        board = db.get(Board, bo_table[i])
+        board = await db.get(Board, bo_table[i])
         if board:
             board.gr_id = gr_id[i]
             board.bo_skin = bo_skin[i]
@@ -102,7 +102,7 @@ async def board_list_update(
             board.bo_order = int(
                 bo_order[i]) if bo_order[i] is not None and bo_order[i].isdigit() else 0
             board.bo_device = bo_device[i] if bo_device[i] is not None else ""
-            db.commit()
+            await db.commit()
 
             # 최신글 캐시 삭제
             FileCache().delete_prefix(f'latest-{board.bo_table}')
@@ -125,20 +125,20 @@ async def board_list_delete(
     from lib.common import _created_models
 
     for i in checks:
-        board = db.get(Board, bo_table[i])
+        board = await db.get(Board, bo_table[i])
         if board:
             # 게시판 관리 레코드 삭제
-            db.delete(board)
+            await db.delete(board)
             # 최신글 삭제
-            db.execute(delete(BoardNew).where(BoardNew.bo_table == board.bo_table))
+            await db.execute(delete(BoardNew).where(BoardNew.bo_table == board.bo_table))
             # 스크랩 삭제
-            db.execute(delete(Scrap).where(Scrap.bo_table == board.bo_table))
+            await db.execute(delete(Scrap).where(Scrap.bo_table == board.bo_table))
             # 파일 삭제
-            db.execute(delete(BoardFile).where(BoardFile.bo_table == board.bo_table))
+            await db.execute(delete(BoardFile).where(BoardFile.bo_table == board.bo_table))
             # 좋아요 기록 삭제
-            db.execute(delete(BoardGood).where(BoardGood.bo_table == board.bo_table))
+            await db.execute(delete(BoardGood).where(BoardGood.bo_table == board.bo_table))
 
-            db.commit()
+            await db.commit()
 
             # 게시판 테이블 삭제
             write_model = dynamic_create_write_table(table_name=board.bo_table, create_table=False)
@@ -229,49 +229,51 @@ async def board_form_update(
     """
     # 등록
     if action == "w":
-        existing_board = db.get(Board, bo_table)
+        existing_board = await db.get(Board, bo_table)
         if existing_board:
             raise AlertException(f"{bo_table} 게시판아이디가 이미 존재합니다. (등록불가)", 400)
 
         # 게시판 설정 등록
         new_board = Board(bo_table=bo_table, **form_data.__dict__)
         db.add(new_board)
-        db.commit()
+        await db.commit()
 
         # 게시판 테이블 생성
         dynamic_create_write_table(table_name=bo_table, create_table=True)
 
     # 수정
     elif action == "u":
-        existing_board = db.get(Board, bo_table)
+        existing_board = await db.get(Board, bo_table)
         if not existing_board:
             raise AlertException(f"{bo_table} 게시판아이디가 존재하지 않습니다. (수정불가)", 404)
 
         # 폼 데이터 반영 후 commit
         for field, value in form_data.__dict__.items():
             setattr(existing_board, field, value)
-        db.commit()
+        await db.commit()
 
     else:
         raise AlertException("잘못된 접근입니다.", 400)
 
     # 그룹적용 체크한 항목이 있다면
     if chk_grp:
-        boards = db.scalars(
+        boards_query = await db.scalars(
             select(Board).where(Board.gr_id == form_data.gr_id)
         )
+        boards = boards_query.all()
         for board in boards:
             for field in chk_grp:
                 setattr(board, field, getattr(form_data, field))
-            db.commit()
+            await db.commit()
 
     # 전체적용 체크한 항목이 있다면
     if chk_all:
-        boards = db.scalars(select(Board)).all()
+        boards_query = await db.scalars(select(Board))
+        boards = boards_query.all()
         for board in boards:
             for field in chk_all:
                 setattr(board, field, getattr(form_data, field))
-            db.commit()
+            await db.commit()
 
     # 최신글 캐시 삭제
     FileCache().delete_prefix(f'latest-{bo_table}')
@@ -309,7 +311,7 @@ async def board_copy_update(
     """
     게시판 복사 처리
     """
-    target_board = db.get(Board, target_table)
+    target_board = await db.get(Board, target_table)
     if target_board:
         raise AlertException(f"{bo_table} 게시판이 이미 존재합니다.", 404)
 
@@ -321,22 +323,23 @@ async def board_copy_update(
 
     target_board = Board(**target_dict)
     db.add(target_board)
-    db.commit()
+    await db.commit()
 
     # 새로운 게시판 테이블 생성
     origin_write_model = dynamic_create_write_table(table_name=bo_table, create_table=False)
     target_write_model = dynamic_create_write_table(table_name=target_table, create_table=True)
     # 복사 유형을 '구조와 데이터' 선택시 테이블의 레코드 모두 복사
     if copy_case == 'schema_data_both':
-        writes = db.scalars(select(origin_write_model)).all()
+        writes_query = await db.scalars(select(origin_write_model))
+        writes = writes_query.all()
         for write in writes:
             copy_data = {column.name: getattr(write, column.name) for column in write.__table__.columns}
 
             # write 객체로 target_write 테이블에 레코드 추가
-            db.execute(target_write_model.__table__.insert(), copy_data)
-            db.commit()
-            if service.is_exist(bo_table, write.wr_id):
-                service.copy_board_files(FILE_DIRECTORY,
+            await db.execute(target_write_model.__table__.insert(), copy_data)
+            await db.commit()
+            if await service.is_exist(bo_table, write.wr_id):
+                await service.copy_board_files(FILE_DIRECTORY,
                                          bo_table, write.wr_id,
                                          target_table, write.wr_id)
 

@@ -34,7 +34,7 @@ async def point_list(
     """
     request.session["menu_key"] = POINT_MENU_KEY
 
-    result = select_query(
+    result = await select_query(
         request,
         db,
         Point,
@@ -44,15 +44,19 @@ async def point_list(
         default_sod="desc",
     )
 
+    # Todo: member은 selectinload 처리 필요
+    for point in result['rows']:
+        point.member = await db.scalar(select(Member).filter_by(mb_id=point.mb_id))
+
     # 회원아이디 검색시 회원정보 조회
     search_member = None
     if search_params['sfl'] == "mb_id" and search_params['stx']:
-        search_member = db.scalar(
+        search_member = await db.scalar(
             select(Member)
             .where(Member.mb_id == search_params['stx'])
         )
     # 전체 포인트 합계
-    sum_point = db.scalar(func.sum(Point.po_point)) or 0
+    sum_point = await db.scalar(func.sum(Point.po_point)) or 0
 
     context = {
         "request": request,
@@ -84,7 +88,7 @@ async def point_update(
     except ValueError:
         raise AlertException(f"{po_point} : 포인트를 숫자(정수)로 입력하세요.", 400)
 
-    exist_member = db.scalar(select(Member).filter_by(mb_id=mb_id))
+    exist_member = await db.scalar(select(Member).filter_by(mb_id=mb_id))
     if not exist_member:
         raise AlertException(f"{mb_id} : 회원이 존재하지 않습니다.", 400)
 
@@ -93,7 +97,7 @@ async def point_update(
 
     # 포인트 내역 저장
     rel_action = exist_member.mb_id + '-' + str(uuid.uuid4())
-    service.save_point(mb_id, po_point,
+    await service.save_point(mb_id, po_point,
                        po_content, "@passive",
                        mb_id, rel_action, po_expire_term)
 
@@ -115,7 +119,7 @@ async def point_list_delete(
     포인트 내역 일괄 삭제
     """
     for i in checks:
-        point = db.get(Point, po_id[i])
+        point = await db.get(Point, po_id[i])
         if not point:
             continue
 
@@ -123,27 +127,27 @@ async def point_list_delete(
             abs_po_point = abs(point.po_point)
 
             if point.po_rel_table == "@expire":
-                service.delete_expire_point(point.mb_id, abs_po_point)
+                await service.delete_expire_point(point.mb_id, abs_po_point)
             else:
-                service.delete_use_point(point.mb_id, abs_po_point)
+                await service.delete_use_point(point.mb_id, abs_po_point)
         elif point.po_use_point > 0:
-            service.insert_use_point(point.mb_id, point.po_use_point, point.po_id)
+            await service.insert_use_point(point.mb_id, point.po_use_point, point.po_id)
 
         # 포인트 내역 삭제
-        db.delete(point)
-        db.commit()
+        await db.delete(point)
+        await db.commit()
 
         # po_mb_point에 반영
-        db.execute(
+        await db.execute(
             update(Point)
             .values(po_mb_point=Point.po_mb_point - point.po_point)
             .where(Point.mb_id == point.mb_id, Point.po_id > point.po_id)
         )
-        db.commit()
+        await db.commit()
 
         # 회원 포인트 갱신
-        sum_point = service.get_total_point(point.mb_id)
-        member_service.update_member_point(point.mb_id, sum_point)
+        sum_point = await service.get_total_point(point.mb_id)
+        await member_service.update_member_point(point.mb_id, sum_point)
 
     url = "/admin/point_list"
     query_params = request.query_params

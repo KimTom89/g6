@@ -61,14 +61,14 @@ async def create_member(
 
     # 회원가입 포인트 지급
     register_point = getattr(config, "cf_register_point", 0)
-    point_service.save_point(member.mb_id, register_point, "회원가입 축하",
+    await point_service.save_point(member.mb_id, register_point, "회원가입 축하",
                              "@member", member.mb_id, "회원가입")
 
     # 추천인 포인트 지급
     mb_recommend = data.mb_recommend
     if getattr(config, "cf_use_recommend", False) and mb_recommend:
         recommend_point = getattr(config, "cf_recommend_point", 0)
-        point_service.save_point(mb_recommend, recommend_point, f"{member.mb_id}의 추천인",
+        await point_service.save_point(mb_recommend, recommend_point, f"{member.mb_id}의 추천인",
                                  "@member", mb_recommend, f"{member.mb_id} 추천")
 
     # 회원가입메일 발송 처리(백그라운드)

@@ -101,7 +101,7 @@ async def send_memo(
         memo = service.send_memo(member, target, data.me_memo)
         service.update_memo_call(member, target)
         # 포인트 소진
-        point_service.save_point(
+        await point_service.save_point(
             member.mb_id, send_point * (-1),
             f"{target.mb_nick}({target.mb_id})님에게 쪽지 발송", "@memo",
             target.mb_id, memo.me_id)

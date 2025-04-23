@@ -518,8 +518,8 @@ class FaqMaster(Base):
     fm_order = Column(Integer, nullable=False, default=0)
 
     # 연관관계
-    related_faqs: DynamicMapped[List["Faq"]] = relationship(
-        "Faq", back_populates="faq_master", lazy="dynamic", cascade="all, delete-orphan"
+    related_faqs: Mapped[List["Faq"]] = relationship(
+        "Faq", back_populates="faq_master", cascade="all, delete-orphan"
     )
 
 

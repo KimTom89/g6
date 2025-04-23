@@ -62,15 +62,15 @@ class MemberService(BaseService):
 
         return member
 
-    def read_member(self, mb_id: str) -> Member:
+    async def read_member(self, mb_id: str) -> Member:
         """회원 정보를 조회합니다."""
-        member = self.fetch_member_by_id(mb_id)
+        member = await self.fetch_member_by_id(mb_id)
         if not member:
             self.raise_exception(
                 status_code=404, detail=f"{mb_id} : 회원정보가 없습니다.")
         return member
 
-    def authenticate_member(self, mb_id: str, password: str) -> Member:
+    async def authenticate_member(self, mb_id: str, password: str) -> Member:
         """
         비밀번호를 검증하여 회원 인증을 수행합니다.
         - 회원 정보가 없거나 탈퇴 또는 차단된 회원은 조회할 수 없습니다.
@@ -78,7 +78,7 @@ class MemberService(BaseService):
         """
         # 아이디, 비밀번호 중 어떤 것이 틀렸는지 알려주지 않도록 하기 위해
         # self.fetch_member()를 호출하지 않습니다.
-        member = self.fetch_member_by_id(mb_id)
+        member = await self.fetch_member_by_id(mb_id)
         if not member or not validate_password(password, member.mb_password):
             self.raise_exception(
                 status_code=403, detail="아이디 또는 비밀번호가 올바르지 않습니다.")
@@ -95,13 +95,13 @@ class MemberService(BaseService):
 
         return member
 
-    def get_member(self, mb_id: str) -> Member:
+    async def get_member(self, mb_id: str) -> Member:
         """
         현재 회원 정보를 조회합니다.
         - 회원 정보가 없거나 탈퇴 또는 차단된 회원은 조회할 수 없습니다.
         - 이메일 인증이 완료되지 않은 회원은 조회할 수 없습니다.
         """
-        member = self.read_member(mb_id)
+        member = await self.read_member(mb_id)
         is_active, message = self.is_activated(member)
         if not is_active:
             self.raise_exception(status_code=403, detail=message)
@@ -112,7 +112,7 @@ class MemberService(BaseService):
 
         return member
 
-    def read_email_non_certify_member(self, mb_id: str, key: str) -> Member:
+    async def read_email_non_certify_member(self, mb_id: str, key: str) -> Member:
         """
         이메일 인증처리가 안된 회원 정보를 조회합니다.
         - 회원 정보가 없거나 탈퇴 또는 차단된 회원은 조회할 수 없습니다.
@@ -177,13 +177,13 @@ class MemberService(BaseService):
 
         return member
 
-    def update_member_point(self, mb_id: str, point: int) -> None:
+    async def update_member_point(self, mb_id: str, point: int) -> None:
         """회원 포인트를 수정합니다."""
-        self.db.execute(
+        await self.db.execute(
             update(Member).values(mb_point=point)
             .where(Member.mb_id == mb_id)
         )
-        self.db.commit()
+        await self.db.commit()
 
     def leave_member(self, member: Member):
         """
@@ -279,13 +279,13 @@ class MemberService(BaseService):
 
         return member
 
-    def fetch_member_by_id(self, mb_id: str) -> Member:
+    async def fetch_member_by_id(self, mb_id: str) -> Member:
         """ID로 회원 정보를 데이터베이스에서 조회합니다."""
-        return self.db.scalar(select(Member).where(Member.mb_id == mb_id))
+        return await self.db.scalar(select(Member).where(Member.mb_id == mb_id))
 
-    def fetch_member_by_nick(self, mb_nick: str) -> Member:
+    async def fetch_member_by_nick(self, mb_nick: str) -> Member:
         """닉네임으로 회원 정보를 데이터베이스에서 조회합니다."""
-        return self.db.scalar(select(Member).where(Member.mb_nick == mb_nick))
+        return await self.db.scalar(select(Member).where(Member.mb_nick == mb_nick))
 
     def fetch_member_by_email(self, mb_email: str, mb_id: str = None) -> Member:
         """
@@ -504,13 +504,13 @@ class ValidateMember(BaseService):
     def raise_exception(self, status_code: int = 400, detail: str = None, url: str = None):
         raise AlertException(detail, status_code, url)
 
-    def valid_id(self, mb_id: str) -> None:
+    async def valid_id(self, mb_id: str) -> None:
         """ 회원가입이 가능한 아이디인지 검사
 
         Args:
             mb_id (str): 가입할 아이디
         """
-        member = self.member_service.fetch_member_by_id(mb_id)
+        member = await self.member_service.fetch_member_by_id(mb_id)
         if member:
             self.raise_exception(409, "이미 가입된 아이디입니다.")
 
@@ -570,7 +570,7 @@ class ValidateMember(BaseService):
         if self.is_prohibit_email(email):
             self.raise_exception(403, "사용이 금지된 메일 도메인입니다.")
 
-    def valid_recommend(self, mb_recommend: str, mb_id: str = None) -> None:
+    async def valid_recommend(self, mb_recommend: str, mb_id: str = None) -> None:
         """추천인 아이디가 존재하는지 검사
 
         Args:
@@ -582,7 +582,7 @@ class ValidateMember(BaseService):
         if mb_id and mb_recommend == mb_id:
             self.raise_exception(403, "본인을 추천인으로 등록할 수 없습니다.")
 
-        member = self.member_service.fetch_member_by_id(mb_recommend)
+        member = await self.member_service.fetch_member_by_id(mb_recommend)
         if not member:
             self.raise_exception(404, "추천인 아이디가 존재하지 않습니다.")
 

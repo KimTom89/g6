@@ -39,7 +39,7 @@ async def mail_list(
 
     config = request.state.config
 
-    result = select_query(
+    result = await select_query(
         request,
         db,
         Mail,
@@ -88,7 +88,7 @@ async def mail_form(
     """
     request.session["menu_key"] = MAIL_MENU_KEY
 
-    mail = db.get(Mail, ma_id)
+    mail = await db.get(Mail, ma_id)
     # if not mail:
     #     raise AlertException("메일 정보가 없습니다.", 400)
 
@@ -121,16 +121,16 @@ async def mail_form_update(
             ma_ip=request.client.host
         )
         db.add(mail)
-        db.commit()
+        await db.commit()
         ma_id = mail.ma_id
     else:  # 수정
-        mail = db.get(Mail, ma_id)
+        mail = await db.get(Mail, ma_id)
         if not mail:
             raise AlertException("메일 정보가 없습니다.", 400)
 
         mail.ma_subject = ma_subject
         mail.ma_content = ma_content
-        db.commit()
+        await db.commit()
 
     return RedirectResponse(f"/admin/mail_form/{ma_id}", status_code=303)
 
@@ -146,8 +146,8 @@ async def mail_delete(
     회원메일발송 삭제
     """
     for i in checks:
-        db.execute(delete(Mail).where(Mail.ma_id == ma_id[i]))
-    db.commit()
+        await db.execute(delete(Mail).where(Mail.ma_id == ma_id[i]))
+    await db.commit()
 
     return RedirectResponse("/admin/mail_list", status_code=303)
 
@@ -165,7 +165,7 @@ async def mail_test(
     if not config.cf_email_use:
         raise AlertException("환경설정에서 '메일발송 사용'에 체크하셔야 메일을 발송할 수 있습니다.", 400)
 
-    exists_mail = db.get(Mail, ma_id)
+    exists_mail = await db.get(Mail, ma_id)
     if not exists_mail:
         raise AlertException("메일 정보가 없습니다.", 400)
 
@@ -213,17 +213,18 @@ async def mail_select_form(
     if not config.cf_email_use:
         raise AlertException("환경설정에서 '메일발송 사용'에 체크하셔야 메일을 발송할 수 있습니다.", 403)
 
-    exists_mail = db.get(Mail, ma_id)
+    exists_mail = await db.get(Mail, ma_id)
     if not exists_mail:
         raise AlertException("메일 정보가 없습니다.")
 
     cleaned_host = re.sub(r'^(www[^\.]*\.)', '', request.client.host)
 
-    groups = db.scalars(select(Group).order_by(Group.gr_subject)).all()
+    groups = await db.scalars(select(Group).order_by(Group.gr_subject))
+    groups = groups.all()
 
     # 전체/탈퇴 회원수
-    member_count = db.scalar(select(func.count(Member.mb_id)))
-    leave_count = db.scalar(
+    member_count = await db.scalar(select(func.count(Member.mb_id)))
+    leave_count = await db.scalar(
         select(func.count(Member.mb_id))
         .where(Member.mb_leave_date != "")
     )
@@ -273,7 +274,8 @@ async def mail_select_list(
         query = query.where(Member.mb_mailling == mb_mailling)
 
     if gr_id:
-        group_members = db.get(Group, gr_id).members
+        group = await db.get(Group, gr_id)
+        group_members = group.members
         if not group_members:
             raise AlertException("선택하신 게시판 그룹회원이 한명도 없습니다.")
         group_member_ids = [member.mb_id for member in group_members]
@@ -294,7 +296,8 @@ async def mail_select_list(
         or_(Member.mb_leave_date == "", comparing_leave_date),
         or_(Member.mb_intercept_date == "", comparing_intercept_date)
     )
-    members = db.scalars(query).all()
+    members = await db.scalars(query)
+    members = members.all()
 
     # members 를 ma_last_option 필드에 저장함 (파이썬, PHP의 차이점으로 인해 POST로 넘기지 못하고 DB에 저장해야함)
     save_members = []
@@ -316,12 +319,12 @@ async def mail_select_list(
     save_members_str = "\n".join(save_members)
     textarea_members_str = "\n".join(textarea_members)
 
-    db.execute(
+    await db.execute(
         update(Mail)
         .where(Mail.ma_id == ma_id)
         .values(ma_last_option=save_members_str)
     )
-    db.commit()
+    await db.commit()
 
     extend = {
         "request": request,
@@ -403,7 +406,7 @@ async def mail_select_send(
         yield "data: 메일발송 중 오류가 발생하였습니다.\n\n"
         yield f"[오류] {message}\n\n"
 
-    exists_mail = db.get(Mail, ma_id)
+    exists_mail = await db.get(Mail, ma_id)
     if not exists_mail.ma_subject or not exists_mail.ma_content:
         return EventSourceResponse(send_error_events("메일 내용이 없습니다."))
 
@@ -423,7 +426,7 @@ async def mail_preview(
     """
     request.session["menu_key"] = MAIL_MENU_KEY
 
-    exists_mail = db.get(Mail, ma_id)
+    exists_mail = await db.get(Mail, ma_id)
     if not exists_mail:
         raise AlertException("메일 정보가 없습니다.", 400)
 

@@ -111,7 +111,7 @@ def validate_update_data(
 
 
 
-def validate_certify_email_member(
+async def validate_certify_email_member(
     member_service: Annotated[MemberServiceAPI, Depends()],
     mb_id: Annotated[str, Path(..., title="회원 아이디", description="회원 아이디")],
     password: Annotated[str, Body(..., title="비밀번호", description="회원 비밀번호")],
@@ -119,7 +119,7 @@ def validate_certify_email_member(
     """
     인증 이메일 변경시 회원 정보의 유효성을 검사합니다.
     """
-    member = member_service.fetch_member_by_id(mb_id)
+    member = await member_service.fetch_member_by_id(mb_id)
     if not validate_password(password, member.mb_password):
         raise HTTPException(
             status_code=400,
